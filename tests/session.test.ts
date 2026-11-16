@@ -70,6 +70,33 @@ describe('GameSession', () => {
     expect(session.state.players[0].alive).toBe(false);
   });
 
+  it('records the last error for decision errors, thrown errors and no-move answers', async () => {
+    const agent = new DeferredAgent('a', 'A');
+    const session = mk([agent]);
+    expect(session.stats.a.lastError).toBeNull();
+    session.tick();
+    agent.answer({ dir: null, latencyMs: 1, costUsd: 0, error: 'http 502: upstream 404' });
+    await flush();
+    expect(session.stats.a.lastError).toBe('http 502: upstream 404');
+    session.tick();
+    agent.answer({ dir: null, latencyMs: 1, costUsd: 0 });
+    await flush();
+    expect(session.stats.a.lastError).toBe('no move');
+
+    const thrower: Agent = {
+      id: 't',
+      label: 'T',
+      kind: 'llm',
+      decide: async () => {
+        throw new Error('boom');
+      },
+    };
+    const s2 = mk([thrower]);
+    s2.tick();
+    await flush();
+    expect(s2.stats.t.lastError).toBe('boom');
+  });
+
   it('a good answer resets the consecutive error count', async () => {
     const agent = new DeferredAgent('a', 'A');
     const session = mk([agent]);

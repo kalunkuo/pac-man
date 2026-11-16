@@ -153,6 +153,26 @@ describe('handleDecide', () => {
     }
   });
 
+  it('adds the upstream error message as detail, trimmed, collapsed and capped', async () => {
+    const mk = (b: unknown) =>
+      vi.fn(async () => new Response(JSON.stringify(b), { status: 404 })) as unknown as typeof fetch;
+    const deps = (fetchImpl: typeof fetch) => ({ apiKey: 'sk-secret', budget: new Budget(), fetchImpl });
+    const r = await handleDecide(body, deps(mk({ error: { message: '  No endpoints\n found   for x  ' } })));
+    expect(r).toEqual({ status: 502, json: { error: 'upstream 404', detail: 'No endpoints found for x' } });
+    const long = await handleDecide(body, deps(mk({ error: { message: 'a'.repeat(500) } })));
+    expect((long.json as { detail: string }).detail).toHaveLength(200);
+    const none = await handleDecide(body, deps(mk({ error: { code: 404 } })));
+    expect(none.json).toEqual({ error: 'upstream 404' });
+    const nonString = await handleDecide(body, deps(mk({ error: { message: 5 } })));
+    expect(nonString.json).toEqual({ error: 'upstream 404' });
+  });
+
+  it('does not throw when the upstream error body is not JSON', async () => {
+    const f = vi.fn(async () => new Response('<html>nope</html>', { status: 503 })) as unknown as typeof fetch;
+    const r = await handleDecide(body, { apiKey: 'k', budget: new Budget(), fetchImpl: f });
+    expect(r).toEqual({ status: 502, json: { error: 'upstream 503' } });
+  });
+
   it('passes an upstream 402 through so the client halts', async () => {
     const f = vi.fn(async () => new Response('no credit', { status: 402 })) as unknown as typeof fetch;
     const budget = new Budget();

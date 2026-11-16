@@ -35,6 +35,18 @@ export function buildPayload(body: DecideBody): object {
   };
 }
 
+/** Best-effort `error.message` from an upstream failure body. Never throws, never echoes headers. */
+async function readUpstreamDetail(res: Response): Promise<string | undefined> {
+  try {
+    const data = (await res.json()) as { error?: { message?: unknown } } | null;
+    const message = data?.error?.message;
+    if (typeof message !== 'string') return undefined;
+    return message.replace(/\s+/g, ' ').trim().slice(0, 200) || undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export async function handleDecide(body: unknown, deps: DecideDeps): Promise<HandlerResult> {
   const b = body as Partial<DecideBody> | null;
   if (
@@ -63,7 +75,11 @@ export async function handleDecide(body: unknown, deps: DecideDeps): Promise<Han
     return { status: 502, json: { error: 'upstream unreachable' } };
   }
   if (upstream.status === 402) return { status: 402, json: { error: 'upstream credit exhausted' } };
-  if (!upstream.ok) return { status: 502, json: { error: `upstream ${upstream.status}` } };
+  if (!upstream.ok) {
+    const detail = await readUpstreamDetail(upstream);
+    const error = `upstream ${upstream.status}`;
+    return { status: 502, json: detail ? { error, detail } : { error } };
+  }
 
   let data: {
     choices?: { message?: { content?: string } }[];

@@ -29,6 +29,8 @@ export interface GameResult {
   avgLatencyMs: number;
   costUsd: number;
   disqualified: boolean;
+  /** Why the most recent call failed. Absent when no call failed. */
+  lastError?: string;
   /** True when the game was stopped (abort or budget) before it ended on its own. */
   truncated: boolean;
 }

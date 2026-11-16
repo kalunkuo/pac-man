@@ -47,7 +47,17 @@ export class OpenRouterAgent implements Agent {
     }
     const latencyMs = performance.now() - started;
     if (res.status === 402) throw new BudgetExceededError();
-    if (!res.ok) return fail(`http ${res.status}`);
+    if (!res.ok) {
+      let reason = `http ${res.status}`;
+      try {
+        const body = (await res.json()) as { error?: unknown; detail?: unknown } | null;
+        if (typeof body?.error === 'string') reason += `: ${body.error}`;
+        if (typeof body?.detail === 'string' && body.detail) reason += ` - ${body.detail}`;
+      } catch {
+        // not JSON: keep the bare status
+      }
+      return fail(reason);
+    }
 
     let data: { text?: string; costUsd?: number };
     try {
@@ -57,6 +67,8 @@ export class OpenRouterAgent implements Agent {
     }
     const costUsd = data.costUsd ?? 0;
     const dir = parseDirection(data.text ?? '');
-    return dir ? { dir, latencyMs, costUsd } : { dir: null, latencyMs, costUsd, error: 'unparseable' };
+    if (dir) return { dir, latencyMs, costUsd };
+    const snippet = (data.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    return { dir: null, latencyMs, costUsd, error: snippet ? `unparseable: "${snippet}"` : 'unparseable: (empty reply)' };
   }
 }

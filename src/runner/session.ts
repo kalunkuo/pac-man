@@ -12,6 +12,7 @@ export interface PlayerStats {
   totalLatencyMs: number;
   costUsd: number;
   disqualified: boolean;
+  lastError: string | null;
 }
 
 /**
@@ -30,7 +31,7 @@ export class GameSession {
     private readonly maxCallsPerGame: number,
   ) {
     for (const a of agents) {
-      this.stats[a.id] = { calls: 0, errors: 0, consecutiveErrors: 0, totalLatencyMs: 0, costUsd: 0, disqualified: false };
+      this.stats[a.id] = { calls: 0, errors: 0, consecutiveErrors: 0, totalLatencyMs: 0, costUsd: 0, disqualified: false, lastError: null };
     }
   }
 
@@ -64,7 +65,7 @@ export class GameSession {
       .then((d) => {
         stats.totalLatencyMs += d.latencyMs;
         stats.costUsd += d.costUsd;
-        if (d.error || !d.dir) this.fail(agent.id);
+        if (d.error || !d.dir) this.fail(agent.id, d.error ?? 'no move');
         else {
           stats.consecutiveErrors = 0;
           setDirection(this.state, agent.id, d.dir);
@@ -72,13 +73,14 @@ export class GameSession {
       })
       .catch((e: unknown) => {
         if (e instanceof BudgetExceededError) this.halted = true;
-        else this.fail(agent.id);
+        else this.fail(agent.id, e instanceof Error ? e.message : String(e));
       })
       .finally(() => this.inflight.delete(agent.id));
   }
 
-  private fail(agentId: string): void {
+  private fail(agentId: string, reason: string): void {
     const stats = this.stats[agentId];
+    stats.lastError = reason;
     stats.errors++;
     stats.consecutiveErrors++;
     if (stats.consecutiveErrors >= MAX_CONSECUTIVE_ERRORS && !stats.disqualified) {

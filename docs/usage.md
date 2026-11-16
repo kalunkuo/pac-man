@@ -77,6 +77,18 @@ Filters: tick maze sizes, layout complexities or ghost counts to rank on those s
 
 Download CSV saves the table that is currently shown as `ranking.csv`.
 
+## When a model fails
+
+A model that fails 5 calls in a row is disqualified. Its board then shows `errors N · ... · last error: <reason>`, and the reason is saved with the run result as `lastError`. Common reasons:
+
+- `http 502: upstream 404 - ...`: the OpenRouter model id is wrong or the model is unavailable. The text after the dash comes from OpenRouter.
+- `http 502: upstream 401 - ...`: OpenRouter rejected the API key.
+- `upstream credit exhausted`: the OpenRouter account is out of credit. The run stops with a budget message instead of counting an error.
+- `unparseable: "..."`: the model replied with something that has no UP, DOWN, LEFT or RIGHT. Often it started explaining instead of answering within the 16-token limit. The quote shows the start of its reply.
+- `network`: the page could not reach the proxy. Check that `npm run server` is running.
+
+Restart the proxy (`npm run server`) after pulling server changes, because it does not reload itself. Without a restart, failures still show only the bare `http <status>`.
+
 ## Tests
 
     npm test          # no network, no cost

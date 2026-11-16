@@ -44,15 +44,36 @@ describe('OpenRouterAgent', () => {
 
   it('reports an error for unparseable replies', async () => {
     const d = await agent(json({ text: 'I am not sure', costUsd: 0.001 })).decide(ctx());
-    expect(d).toMatchObject({ dir: null, error: 'unparseable', costUsd: 0.001 });
+    expect(d).toMatchObject({ dir: null, error: 'unparseable: "I am not sure"', costUsd: 0.001 });
   });
 
   it('reports an error for HTTP failures and network failures', async () => {
-    expect((await agent(json({ error: 'x' }, 502)).decide(ctx())).error).toBe('http 502');
+    expect((await agent(json({ error: 'x' }, 502)).decide(ctx())).error).toBe('http 502: x');
     const boom = vi.fn(async () => {
       throw new Error('down');
     }) as unknown as typeof fetch;
     expect((await agent(boom).decide(ctx())).error).toBe('network');
+  });
+
+  it('includes the proxy error and detail in http failures', async () => {
+    const d = await agent(json({ error: 'upstream 404', detail: 'No endpoints found' }, 502)).decide(ctx());
+    expect(d.error).toBe('http 502: upstream 404 - No endpoints found');
+  });
+
+  it('falls back to the bare status when the proxy reply is not JSON', async () => {
+    const f = vi.fn(async () => new Response('<html>bad gateway</html>', { status: 502 })) as unknown as typeof fetch;
+    expect((await agent(f).decide(ctx())).error).toBe('http 502');
+  });
+
+  it('quotes the first 60 characters of an unparseable reply, whitespace collapsed', async () => {
+    const text = 'Let me   think\nabout this ' + 'x'.repeat(100);
+    const d = await agent(json({ text, costUsd: 0.001 })).decide(ctx());
+    expect(d.error).toBe(`unparseable: "${('Let me think about this ' + 'x'.repeat(100)).slice(0, 60)}"`);
+  });
+
+  it('labels an empty unparseable reply', async () => {
+    expect((await agent(json({ text: '  ', costUsd: 0 })).decide(ctx())).error).toBe('unparseable: (empty reply)');
+    expect((await agent(json({ costUsd: 0 })).decide(ctx())).error).toBe('unparseable: (empty reply)');
   });
 
   it('sends a timeout signal and maps a timeout to a network error', async () => {

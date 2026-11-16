@@ -23,6 +23,11 @@ describe('runPlan (offline, baselines only)', () => {
     expect(JSON.stringify(a)).toBe(JSON.stringify(b));
   });
 
+  it('baseline results carry no lastError key', async () => {
+    const a = await runPlan(plan('benchmark'));
+    expect(a.every((r) => !('lastError' in r))).toBe(true);
+  });
+
   it('arena mode runs one shared game per scenario and seed', async () => {
     const results = await runPlan(plan('arena'));
     expect(results).toHaveLength(2 * 2 * 3);

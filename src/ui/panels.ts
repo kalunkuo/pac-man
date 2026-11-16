@@ -15,9 +15,13 @@ export function shade(value: number, min: number, max: number, higherIsBetter: b
 export function describePlayer(label: string, p: Player, s: PlayerStats, level: number): string {
   const avg = s.totalLatencyMs / Math.max(1, s.calls);
   const status = s.disqualified ? ' · disqualified' : !p.alive ? ' · out' : '';
+  const lastError =
+    s.errors > 0 && s.lastError
+      ? ` · last error: ${s.lastError.length > 90 ? `${s.lastError.slice(0, 90)}…` : s.lastError}`
+      : '';
   return (
     `${label} · score ${p.score} · lives ${p.lives} · level ${level} · calls ${s.calls} · ` +
-    `errors ${s.errors} · ${Math.round(avg)} ms · $${s.costUsd.toFixed(4)}${status}`
+    `errors ${s.errors} · ${Math.round(avg)} ms · $${s.costUsd.toFixed(4)}${status}${lastError}`
   );
 }
 

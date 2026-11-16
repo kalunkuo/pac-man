@@ -26,6 +26,7 @@ function toResult(mode: Mode, scenario: Scenario, seed: number, session: GameSes
     costUsd: stats.costUsd,
     disqualified: stats.disqualified,
     truncated: session.halted || session.state.status !== 'over',
+    ...(stats.lastError !== null && { lastError: stats.lastError }),
   };
 }
 

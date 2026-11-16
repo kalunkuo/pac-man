@@ -30,11 +30,25 @@ describe('describePlayer', () => {
     diedAtTick: null,
     ...over,
   });
-  const stats = { calls: 10, errors: 1, consecutiveErrors: 0, totalLatencyMs: 500, costUsd: 0.0123, disqualified: false };
+  const stats = { calls: 10, errors: 1, consecutiveErrors: 0, totalLatencyMs: 500, costUsd: 0.0123, disqualified: false, lastError: null };
 
   it('summarises score, lives, level, calls, errors, latency and cost', () => {
     expect(describePlayer('Model A', player(), stats, 3)).toBe(
       'Model A · score 120 · lives 2 · level 3 · calls 10 · errors 1 · 50 ms · $0.0123',
+    );
+  });
+  it('appends the last error when there are errors, cut to 90 characters', () => {
+    const base = 'Model A · score 120 · lives 2 · level 3 · calls 10 · errors 1 · 50 ms · $0.0123';
+    expect(describePlayer('Model A', player(), { ...stats, lastError: 'network' }, 3)).toBe(`${base} · last error: network`);
+    const long = 'e'.repeat(120);
+    expect(describePlayer('Model A', player(), { ...stats, lastError: long }, 3)).toBe(
+      `${base} · last error: ${'e'.repeat(90)}…`,
+    );
+    expect(describePlayer('Model A', player(), { ...stats, lastError: 'e'.repeat(90) }, 3)).toBe(
+      `${base} · last error: ${'e'.repeat(90)}`,
+    );
+    expect(describePlayer('Model A', player(), { ...stats, errors: 0, lastError: 'old' }, 3)).toBe(
+      base.replace('errors 1', 'errors 0'),
     );
   });
   it('marks eliminated and disqualified players', () => {
