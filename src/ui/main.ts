@@ -9,9 +9,10 @@ import { runPlan } from '../runner/run-plan';
 import { ALL_SCENARIOS, PRESETS, makeScenario, scenarioConfig } from '../runner/scenarios';
 import type { GameSession } from '../runner/session';
 import type { GameResult, Mode, RunPlan } from '../runner/types';
+import type { RunMeta, StoredRun } from '../ranking/rank';
 import { describePlayer, renderHeatmap, type Metric } from './panels';
 import { PLAYER_COLORS, drawBoard } from './render';
-import { restoreRun } from './saved';
+import { mountRankingPanel } from './ranking-panel';
 import { validateSettings } from './settings';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -208,6 +209,50 @@ function explainProxyError(err: unknown): string {
   return `${msg}. The page could not reach its dev server.`;
 }
 
+// --- ranking ---
+const panel = mountRankingPanel($('ranking'));
+const sessionRuns: StoredRun[] = [];
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
+
+function asStoredRun(entry: unknown): StoredRun | null {
+  if (!isObj(entry) || typeof entry.runId !== 'string') return null;
+  const { runId, results } = entry;
+  if (Array.isArray(results)) return { runId, meta: null, results };
+  if (isObj(results) && isObj(results.meta) && Array.isArray(results.results)) {
+    const m = results.meta;
+    if (typeof m.mode === 'string' && typeof m.tickMs === 'number' && typeof m.maxTicks === 'number' && Array.isArray(m.agents)) {
+      return { runId, meta: m as unknown as RunMeta, results: results.results };
+    }
+  }
+  return null;
+}
+
+async function loadStoredRuns(): Promise<{ runs: StoredRun[]; note?: string }> {
+  try {
+    const res = await fetch('/api/results');
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const body = (await res.json()) as unknown;
+    const runs = (Array.isArray(body) ? body : []).flatMap((e) => {
+      const run = asStoredRun(e);
+      return run ? [run] : [];
+    });
+    // The save may have failed; keep this session's runs that the proxy does not have.
+    const known = new Set(runs.map((r) => r.runId));
+    return { runs: [...runs, ...sessionRuns.filter((r) => !known.has(r.runId))] };
+  } catch {
+    return {
+      runs: [...sessionRuns],
+      note: 'Proxy server not running: showing only runs from this session. Start npm run server to keep and combine runs.',
+    };
+  }
+}
+
+async function refreshRanking() {
+  const { runs, note } = await loadStoredRuns();
+  panel.update(runs, note);
+}
+void refreshRanking();
+
 let running = false;
 
 $('btnRun').onclick = async () => {
@@ -275,9 +320,16 @@ $('btnRun').onclick = async () => {
         agents: shownAgents,
         scenarios: p.plan.scenarios.map(({ id, name, size, complexity, ghosts }) => ({ id, name, size, complexity, ghosts })),
       };
-      await postJson('/api/results', { runId: `run-${Date.now()}`, results: { meta, results: out } });
+      const runId = `run-${Date.now()}`;
+      sessionRuns.push({ runId, meta, results: out });
+      try {
+        await postJson('/api/results', { runId, results: { meta, results: out } });
+      } catch {
+        $('status').textContent += ' (Could not save this run to the proxy.)';
+      }
+      await refreshRanking();
     } catch {
-      $('status').textContent += ' (Could not save this run to the proxy.)';
+      /* the ranking refresh handles its own failures */
     }
   } catch (err) {
     $('status').textContent = `Run failed: ${err instanceof Error ? err.message : String(err)}`;
@@ -287,41 +339,6 @@ $('btnRun').onclick = async () => {
     running = false;
     $<HTMLButtonElement>('btnRun').disabled = false;
   }
-};
-
-// --- saved runs ---
-let savedRuns: { runId: string; results: unknown }[] = [];
-
-$('btnLoadList').onclick = async () => {
-  try {
-    const res = await fetch('/api/results');
-    if (!res.ok) throw new Error(`status ${res.status}`);
-    savedRuns = (await res.json()) as { runId: string; results: unknown }[];
-    const select = $<HTMLSelectElement>('saved');
-    select.replaceChildren(...savedRuns.map((r) => new Option(r.runId, r.runId)));
-    $('status').textContent = savedRuns.length ? `${savedRuns.length} saved run(s) found.` : 'No saved runs yet.';
-  } catch {
-    $('status').textContent = 'Could not list saved runs (is npm run server running?).';
-  }
-};
-
-// Reloading only reads a file the proxy already stored. It never starts a run or calls a model.
-$('btnLoad').onclick = () => {
-  if (running) {
-    $('status').textContent = 'Wait for the current run to finish or click Stop first.';
-    return;
-  }
-  const run = savedRuns.find((r) => r.runId === $<HTMLSelectElement>('saved').value);
-  const restored = run ? restoreRun(run.results) : null;
-  if (!run || !restored) {
-    $('status').textContent = run ? 'That saved run could not be read.' : 'Click Refresh list and pick a saved run first.';
-    return;
-  }
-  results = restored.results;
-  shownAgents = restored.agents;
-  shownScenarios = restored.scenarios;
-  refreshResults();
-  $('status').textContent = `Showing saved run ${run.runId}.`;
 };
 
 $('btnStop').onclick = () => controller?.abort();

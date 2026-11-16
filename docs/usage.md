@@ -60,7 +60,22 @@ The heatmap shows models by scenario for the chosen metric (mean score, level, s
 
 Truncated games: a game stopped early (Stop button or budget cap) is marked truncated. It is left out of every mean and cannot win a scenario, but its cost still counts. A heatmap cell with stopped games shows `*` (hover for the count), and a note appears under the heatmap. A cell with no finished games shows `-`.
 
-Saved runs: when a run ends it is saved to `results/run-<timestamp>.json` (git-ignored) with the models, scenarios and settings used. In the "Saved runs" section, click Refresh list, pick a run, then click Show saved run to see its heatmap again. Reloading only reads the saved file. It never starts a run or calls a model, and it needs the proxy running. Older runs saved as a bare list still load, with model ids as labels. Files that cannot be parsed are skipped.
+## Ranking
+
+The Ranking panel above the results heatmap ranks models across every finished run. When a run ends it is saved to `results/run-<timestamp>.json` (git-ignored) with the models, scenarios and settings used. The panel reads all of those files on page load and after each run, so the ranking builds up over time and survives reloads. This needs `npm run server`. Without it the panel shows only this session's runs and says so. Reading saved runs never starts a run or calls a model.
+
+How the ranking works:
+
+- Only runs with the same settings (mode, tick speed, max ticks) are combined, so arena and benchmark runs are ranked separately. Pick the settings in the first select (newest first).
+- Games stopped early are left out and counted in a note. Runs saved without settings info (older format) are left out, with a count.
+- Ranking uses the largest block of overlapping data: a set of scenarios and the models that have finished games in every one of them. Other models are listed under "Not enough data yet" with the number of scenarios they are missing.
+- In each scenario, models are ordered by mean score. Ties share the average of their positions. The overall order is the average rank across scenarios (lower is better), and ties in average rank share a rank number.
+- Wins is the number of scenarios where a model has the best mean score.
+- Cost per 1,000 pts is the model's total cost divided by its total score in thousands, or `-` when its score is 0.
+
+Filters: tick maze sizes, layout complexities or ghost counts to rank on those scenarios only. With nothing ticked in a group, all are included. If the filters leave too little overlapping data, the panel says so.
+
+Download CSV saves the table that is currently shown as `ranking.csv`.
 
 ## Tests
 
