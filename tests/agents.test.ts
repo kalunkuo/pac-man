@@ -95,6 +95,21 @@ describe('baselines', () => {
     expect((await new PlannerAgent('p', 'P').decide(ctxFor(state))).dir).toBe('LEFT');
   });
 
+  it('planner does not walk toward a pellet through a ghost danger zone', async () => {
+    const state = corridor();
+    state.pellets = new Set([key({ x: 5, y: 1 })]);
+    state.ghosts = [{ pos: { x: 4, y: 1 }, dir: 'LEFT', behavior: 'chase' }];
+    expect((await new PlannerAgent('p', 'P').decide(ctxFor(state))).dir).toBe('LEFT');
+  });
+
+  it('planner ignores ghost danger while ghosts are frightened', async () => {
+    const state = corridor();
+    state.pellets = new Set([key({ x: 5, y: 1 })]);
+    state.ghosts = [{ pos: { x: 4, y: 1 }, dir: 'LEFT', behavior: 'chase' }];
+    state.frightenedTicks = 10;
+    expect((await new PlannerAgent('p', 'P').decide(ctxFor(state))).dir).toBe('RIGHT');
+  });
+
   it('firstStepToNearest returns null when nothing is reachable', () => {
     const walls = parseWalls(['#####', '#.#.#', '#####']);
     expect(firstStepToNearest(walls, { x: 1, y: 1 }, new Set(['3,1']), new Set())).toBeNull();
