@@ -2,10 +2,11 @@ import { GreedyAgent, PlannerAgent, RandomAgent } from '../agents/baselines';
 import { OpenRouterAgent } from '../agents/openrouter';
 import type { Agent } from '../agents/types';
 import { MODELS } from '../models.config';
+import { createGame } from '../engine/engine';
 import { aggregate, winners } from '../runner/aggregate';
 import { estimateRun } from '../runner/estimate';
 import { runPlan } from '../runner/run-plan';
-import { ALL_SCENARIOS, PRESETS } from '../runner/scenarios';
+import { ALL_SCENARIOS, PRESETS, makeScenario, scenarioConfig } from '../runner/scenarios';
 import type { GameSession } from '../runner/session';
 import type { GameResult, Mode, RunPlan } from '../runner/types';
 import { describePlayer, renderHeatmap, type Metric } from './panels';
@@ -150,6 +151,21 @@ function showGroup(sessions: GameSession[], agents: Agent[]) {
   });
   $('boards').replaceChildren(...boards.map((b) => b.wrap));
 }
+
+// Static preview so the page shows a game before the first run. Nothing plays on it, and
+// showGroup() replaces it with the live boards.
+function showPreview() {
+  const state = createGame(scenarioConfig(makeScenario('medium', 'medium', 2), 1), ['preview']);
+  const wrap = document.createElement('div');
+  wrap.className = 'board';
+  const canvas = document.createElement('canvas');
+  const caption = document.createElement('pre');
+  caption.textContent = 'Preview. Pick models and click Run to start a game.';
+  wrap.append(canvas, caption);
+  $('boards').replaceChildren(wrap);
+  drawBoard(canvas, state, { preview: PLAYER_COLORS[0] });
+}
+showPreview();
 
 // --- run ---
 let controller: AbortController | null = null;
