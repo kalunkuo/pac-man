@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { Budget, parseBudgetBody } from '../src/server/budget';
 import { FALLBACK_COST_USD, buildPayload, handleDecide } from '../src/server/decide';
+import { DEFAULT_BODY_LIMIT, RESULTS_BODY_LIMIT, exceedsLimit } from '../src/server/limits';
 import { listResults, saveResults } from '../src/server/results-store';
 
 const okFetch = () =>
@@ -215,5 +216,18 @@ describe('results store', () => {
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('body limits', () => {
+  it('allows large result uploads but keeps the small default for other routes', () => {
+    expect(DEFAULT_BODY_LIMIT).toBe(1_000_000);
+    expect(RESULTS_BODY_LIMIT).toBe(25_000_000);
+    expect(exceedsLimit(5_000_000, DEFAULT_BODY_LIMIT)).toBe(true);
+    expect(exceedsLimit(5_000_000, RESULTS_BODY_LIMIT)).toBe(false);
+  });
+  it('rejects a body only when it is strictly over the limit', () => {
+    expect(exceedsLimit(1_000_000, DEFAULT_BODY_LIMIT)).toBe(false);
+    expect(exceedsLimit(1_000_001, DEFAULT_BODY_LIMIT)).toBe(true);
   });
 });

@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from 'node:ht
 import { Budget, parseBudgetBody } from './budget';
 import { handleDecide } from './decide';
 import { checkRequest } from './guard';
+import { DEFAULT_BODY_LIMIT, RESULTS_BODY_LIMIT, exceedsLimit } from './limits';
 import { listResults, saveResults } from './results-store';
 
 const PORT = Number(process.env.PORT ?? 8787);
@@ -17,12 +18,12 @@ class HttpError extends Error {
   }
 }
 
-async function readJson(req: IncomingMessage): Promise<unknown> {
+async function readJson(req: IncomingMessage, limit = DEFAULT_BODY_LIMIT): Promise<unknown> {
   const chunks: Buffer[] = [];
   let size = 0;
   for await (const chunk of req) {
     size += (chunk as Buffer).length;
-    if (size > 1_000_000) throw new HttpError(413, 'body too large');
+    if (exceedsLimit(size, limit)) throw new HttpError(413, 'body too large');
     chunks.push(chunk as Buffer);
   }
   if (!chunks.length) return null;
@@ -64,7 +65,7 @@ createServer(async (req, res) => {
     }
     if (url === '/api/results' && req.method === 'GET') return send(res, 200, await listResults(RESULTS_DIR));
     if (url === '/api/results' && req.method === 'POST') {
-      const b = (await readJson(req)) as { runId?: unknown; results?: unknown } | null;
+      const b = (await readJson(req, RESULTS_BODY_LIMIT)) as { runId?: unknown; results?: unknown } | null;
       if (!b || typeof b.runId !== 'string' || b.results === undefined) return send(res, 400, { error: 'invalid request' });
       await saveResults(RESULTS_DIR, b.runId, b.results);
       return send(res, 200, { ok: true });

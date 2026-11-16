@@ -347,8 +347,9 @@ $('btnRun').onclick = async () => {
       sessionRuns.push({ runId, meta, results: out });
       try {
         await postJson('/api/results', { runId, results: { meta, results: out } });
-      } catch {
-        $('status').textContent += ' (Could not save this run to the proxy.)';
+      } catch (err) {
+        const why = err instanceof Error ? ` ${err.message}` : '';
+        $('status').textContent += ` (Could not save this run to the proxy:${why || ' network error'}.)`;
       }
       await refreshRanking();
     } catch {
