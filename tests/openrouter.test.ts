@@ -54,4 +54,15 @@ describe('OpenRouterAgent', () => {
     }) as unknown as typeof fetch;
     expect((await agent(boom).decide(ctx())).error).toBe('network');
   });
+
+  it('sends a timeout signal and maps a timeout to a network error', async () => {
+    const fetchImpl = json({ text: 'UP', costUsd: 0 });
+    await agent(fetchImpl).decide(ctx());
+    const init = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit;
+    expect(init.signal).toBeInstanceOf(AbortSignal);
+    const timedOut = vi.fn(async () => {
+      throw new DOMException('timed out', 'TimeoutError');
+    }) as unknown as typeof fetch;
+    expect((await agent(timedOut).decide(ctx())).error).toBe('network');
+  });
 });

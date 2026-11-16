@@ -1,6 +1,9 @@
 import type { Budget } from './budget';
 
 export const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+/** Charged per call when OpenRouter omits usage.cost, so the money cap cannot be silently bypassed. */
+export const FALLBACK_COST_USD = 0.01;
+const UPSTREAM_TIMEOUT_MS = 30_000;
 const MODEL_RE = /^[\w.-]+\/[\w.:-]+$/;
 
 export interface DecideBody {
@@ -54,22 +57,28 @@ export async function handleDecide(body: unknown, deps: DecideDeps): Promise<Han
       method: 'POST',
       headers: { authorization: `Bearer ${deps.apiKey}`, 'content-type': 'application/json' },
       body: JSON.stringify(buildPayload(b as DecideBody)),
+      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
     });
   } catch {
     return { status: 502, json: { error: 'upstream unreachable' } };
   }
+  if (upstream.status === 402) return { status: 402, json: { error: 'upstream credit exhausted' } };
   if (!upstream.ok) return { status: 502, json: { error: `upstream ${upstream.status}` } };
 
   let data: {
     choices?: { message?: { content?: string } }[];
-    usage?: { cost?: number };
-  };
+    usage?: { cost?: unknown };
+  } | null;
   try {
     data = await upstream.json();
   } catch {
     return { status: 502, json: { error: 'upstream bad response' } };
   }
-  const costUsd = data.usage?.cost ?? 0;
+  if (typeof data !== 'object' || data === null) return { status: 502, json: { error: 'upstream bad response' } };
+  const cost = data.usage?.cost;
+  const known = typeof cost === 'number' && Number.isFinite(cost) && cost >= 0;
+  const costUsd = known ? cost : FALLBACK_COST_USD;
   deps.budget.record(costUsd);
-  return { status: 200, json: { text: data.choices?.[0]?.message?.content ?? '', costUsd } };
+  const text = data.choices?.[0]?.message?.content ?? '';
+  return { status: 200, json: known ? { text, costUsd } : { text, costUsd, costEstimated: true } };
 }

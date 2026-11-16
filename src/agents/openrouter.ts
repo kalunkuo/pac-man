@@ -2,6 +2,8 @@ import { SYSTEM_PROMPT } from './prompt';
 import { parseDirection } from './parse';
 import { BudgetExceededError, type Agent, type DecideContext, type Decision } from './types';
 
+const REQUEST_TIMEOUT_MS = 30_000;
+
 export interface OpenRouterAgentOptions {
   id: string;
   label: string;
@@ -38,6 +40,7 @@ export class OpenRouterAgent implements Agent {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ model: this.opts.model, system: SYSTEM_PROMPT, user: observation.text }),
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
     } catch {
       return fail('network');

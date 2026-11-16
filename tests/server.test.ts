@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { Budget, parseBudgetBody } from '../src/server/budget';
-import { buildPayload, handleDecide } from '../src/server/decide';
+import { FALLBACK_COST_USD, buildPayload, handleDecide } from '../src/server/decide';
 import { listResults, saveResults } from '../src/server/results-store';
 
 const okFetch = () =>
@@ -77,7 +77,7 @@ describe('handleDecide', () => {
     const fetchImpl = okFetch();
     const budget = new Budget(1, 100);
     const r = await handleDecide(body, { apiKey: 'sk-test', budget, fetchImpl });
-    expect(r).toEqual({ status: 200, json: { text: 'UP', costUsd: 0.0004 } });
+    expect(r).toEqual({ status: 200, json: { text: 'UP', costUsd: 0.0004 } }); // no costEstimated key when cost is real
     expect(budget.spentUsd).toBeCloseTo(0.0004);
     const [url, init] = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0];
     expect(url).toBe('https://openrouter.ai/api/v1/chat/completions');
@@ -118,10 +118,54 @@ describe('handleDecide', () => {
     expect(budget.calls).toBe(0);
   });
 
-  it('treats a missing usage cost as zero and a missing reply as empty text', async () => {
+  it('charges a conservative fallback when usage cost is missing, and treats a missing reply as empty text', async () => {
     const f = vi.fn(async () => new Response(JSON.stringify({ choices: [] }), { status: 200 })) as unknown as typeof fetch;
     const r = await handleDecide(body, { apiKey: 'k', budget: new Budget(), fetchImpl: f });
-    expect(r).toEqual({ status: 200, json: { text: '', costUsd: 0 } });
+    expect(FALLBACK_COST_USD).toBe(0.01);
+    expect(r).toEqual({ status: 200, json: { text: '', costUsd: 0.01, costEstimated: true } });
+  });
+
+  it('charges the fallback to the budget so the cap still stops the run', async () => {
+    const f = vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: 'UP' } }] }), { status: 200 })) as unknown as typeof fetch;
+    const budget = new Budget(0.025, 100);
+    for (let i = 0; i < 3; i++) await handleDecide(body, { apiKey: 'k', budget, fetchImpl: f });
+    expect(budget.spentUsd).toBeCloseTo(0.03);
+    expect(budget.exhausted()).toBe(true);
+    expect((await handleDecide(body, { apiKey: 'k', budget, fetchImpl: f })).status).toBe(402);
+    expect(f).toHaveBeenCalledTimes(3);
+  });
+
+  it('also uses the fallback when the cost is not a finite number', async () => {
+    for (const cost of ['0.1', null, -1]) {
+      const f = vi.fn(async () => new Response(JSON.stringify({ choices: [], usage: { cost } }), { status: 200 })) as unknown as typeof fetch;
+      const r = await handleDecide(body, { apiKey: 'k', budget: new Budget(), fetchImpl: f });
+      expect(r.json).toMatchObject({ costUsd: 0.01, costEstimated: true });
+    }
+  });
+
+  it('maps a null or non-object upstream body to 502', async () => {
+    for (const raw of ['null', '42', '"x"']) {
+      const f = vi.fn(async () => new Response(raw, { status: 200 })) as unknown as typeof fetch;
+      const budget = new Budget();
+      const r = await handleDecide(body, { apiKey: 'k', budget, fetchImpl: f });
+      expect(r).toEqual({ status: 502, json: { error: 'upstream bad response' } });
+      expect(budget.calls).toBe(0);
+    }
+  });
+
+  it('passes an upstream 402 through so the client halts', async () => {
+    const f = vi.fn(async () => new Response('no credit', { status: 402 })) as unknown as typeof fetch;
+    const budget = new Budget();
+    const r = await handleDecide(body, { apiKey: 'k', budget, fetchImpl: f });
+    expect(r).toEqual({ status: 402, json: { error: 'upstream credit exhausted' } });
+    expect(budget.calls).toBe(0);
+  });
+
+  it('gives the upstream request a timeout signal', async () => {
+    const fetchImpl = okFetch();
+    await handleDecide(body, { apiKey: 'k', budget: new Budget(), fetchImpl });
+    const init = (fetchImpl as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1] as RequestInit;
+    expect(init.signal).toBeInstanceOf(AbortSignal);
   });
 });
 
