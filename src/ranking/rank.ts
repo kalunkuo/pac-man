@@ -39,6 +39,8 @@ export interface RankRow {
   scenarios: number;
   wins: number;
   games: number;
+  meanSurvivedTicks: number;
+  meanLivesLeft: number;
   meanScore: number;
   meanLevel: number;
   meanLatencyMs: number;
@@ -60,6 +62,7 @@ export interface Ranking {
   scenarios: string[];
   games: number;
   truncatedExcluded: number;
+  connectionExcluded: number;
 }
 
 const SCENARIO_RE = /^(small|medium|large|huge)-(simple|medium|complex)-(0|1|2|4)g$/;
@@ -100,12 +103,23 @@ export function listGroups(runs: StoredRun[]): { groups: SettingsGroup[]; legacy
 interface Acc {
   n: number;
   score: number;
+  survived: number;
+  lives: number;
   level: number;
   latency: number;
   cost: number;
 }
 
-const emptyAcc = (): Acc => ({ n: 0, score: 0, level: 0, latency: 0, cost: 0 });
+const emptyAcc = (): Acc => ({ n: 0, score: 0, survived: 0, lives: 0, level: 0, latency: 0, cost: 0 });
+
+/**
+ * A game that ended because the model could not be reached or set up, not because it played badly.
+ * Models that answered but gave no usable move (`unparseable`, `no move`) still count. Older results
+ * have no `lastError`, so a disqualified game without one is treated as a connection failure.
+ */
+export function isConnectionFailure(r: GameResult): boolean {
+  return r.disqualified && !/^(unparseable|no move)/.test(r.lastError ?? '');
+}
 
 function matches(sc: { size: SizeKey; complexity: Complexity; ghosts: number }, f: RankFilter): boolean {
   return (
@@ -166,6 +180,7 @@ export function buildRanking(runs: StoredRun[], filter: RankFilter): Ranking {
   const cells = new Map<string, Map<string, Acc>>(); // agent -> scenario -> totals
   let games = 0;
   let truncatedExcluded = 0;
+  let connectionExcluded = 0;
 
   for (const run of [...runs].sort((a, b) => a.runId.localeCompare(b.runId))) {
     if (!run.meta || groupKey(run.meta) !== filter.settingsKey) continue;
@@ -178,11 +193,17 @@ export function buildRanking(runs: StoredRun[], filter: RankFilter): Ranking {
         truncatedExcluded++;
         continue;
       }
+      if (isConnectionFailure(r)) {
+        connectionExcluded++;
+        continue;
+      }
       games++;
       const perScenario = cells.get(r.agentId) ?? new Map<string, Acc>();
       const acc = perScenario.get(r.scenarioId) ?? emptyAcc();
       acc.n++;
       acc.score += r.score;
+      acc.survived += r.survivedTicks;
+      acc.lives += r.livesLeft;
       acc.level += r.level;
       acc.latency += r.avgLatencyMs;
       acc.cost += r.costUsd;
@@ -224,6 +245,8 @@ export function buildRanking(runs: StoredRun[], filter: RankFilter): Ranking {
       const a = cells.get(agentId)!.get(s)!;
       total.n += a.n;
       total.score += a.score;
+      total.survived += a.survived;
+      total.lives += a.lives;
       total.level += a.level;
       total.latency += a.latency;
       total.cost += a.cost;
@@ -235,6 +258,8 @@ export function buildRanking(runs: StoredRun[], filter: RankFilter): Ranking {
       scenarios: considered.length,
       wins: wins.get(agentId)!,
       games: total.n,
+      meanSurvivedTicks: total.survived / total.n,
+      meanLivesLeft: total.lives / total.n,
       meanScore: total.score / total.n,
       meanLevel: total.level / total.n,
       meanLatencyMs: total.latency / total.n,
@@ -249,25 +274,28 @@ export function buildRanking(runs: StoredRun[], filter: RankFilter): Ranking {
     return { ...row, rank: firstEqual + 1 };
   });
 
-  return { rows, notRanked, scenarios: considered, games, truncatedExcluded };
+  return { rows, notRanked, scenarios: considered, games, truncatedExcluded, connectionExcluded };
+}
+
+export function csvEscape(v: string | number | null): string {
+  const s = v === null ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
 export function toCsv(rows: RankRow[]): string {
-  const esc = (v: string | number | null): string => {
-    const s = v === null ? '' : String(v);
-    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-  };
   const head = [
     'rank', 'model', 'avg_rank', 'scenarios', 'wins', 'games',
+    'survival_ticks', 'lives_left',
     'mean_score', 'mean_level', 'mean_latency_ms', 'total_cost_usd', 'cost_per_1000_points',
   ];
   const lines = rows.map((r) =>
     [
       r.rank, r.label, r.avgRank.toFixed(2), r.scenarios, r.wins, r.games,
+      r.meanSurvivedTicks.toFixed(0), r.meanLivesLeft.toFixed(2),
       r.meanScore.toFixed(1), r.meanLevel.toFixed(1), r.meanLatencyMs.toFixed(0),
       r.totalCostUsd.toFixed(4), r.costPer1000Points === null ? null : r.costPer1000Points.toFixed(4),
     ]
-      .map(esc)
+      .map(csvEscape)
       .join(','),
   );
   return [head.join(','), ...lines].join('\n');

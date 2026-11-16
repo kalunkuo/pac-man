@@ -62,20 +62,37 @@ Truncated games: a game stopped early (Stop button or budget cap) is marked trun
 
 ## Ranking
 
-The Ranking panel above the results heatmap ranks models across every finished run. When a run ends it is saved to `results/run-<timestamp>.json` (git-ignored) with the models, scenarios and settings used. The panel reads all of those files on page load and after each run, so the ranking builds up over time and survives reloads. This needs `npm run server`. Without it the panel shows only this session's runs and says so. Reading saved runs never starts a run or calls a model.
+The Ranking panel above the results heatmap rates models across every finished run. When a run ends it is saved to `results/run-<timestamp>.json` (git-ignored) with the models, scenarios and settings used. The panel reads all of those files on page load and after each run, so the results build up over time and survive reloads. This needs `npm run server`. Without it the panel shows only this session's runs and says so. Reading saved runs never starts a run or calls a model.
 
-How the ranking works:
+Two buttons switch the view: Rating (the default) and Average rank.
+
+### Rating view
+
+The Rating view compares models head to head across all runs, so you do not have to run everything at once.
+
+- A match is two models playing the same maze: the same run settings, scenario and seed. The model with the higher score wins and equal scores are a draw. If a model played that maze more than once, its mean score is used. Matches are decided by score only. Survival (ticks) and Lives left are shown beside it for context.
+- Wins and draws are turned into a rating on an Elo-like scale. 1000 is the average model, and every 400 points means about 10 times the odds of winning a match.
+- 95% range is how much the rating could move with different luck, found by resampling the matches. More runs on more seeds and scenarios narrow the range, so a wide range means the rating is still uncertain.
+- Only models that are linked by shared matches can be compared. Models that have not played the same scenarios and seeds as the rest are listed under "Not connected yet".
+- Games stopped early are not counted. Games that ended by connection or setup errors (for example a wrong model id or a network failure) are not counted either, so a broken setup does not hurt a model's rating. A model that answered but gave no usable move still counts. Each exclusion is shown in a note.
+- Arena runs are not rated. They are counted in a note.
+- The first select starts on All settings, which mixes runs with different tick speeds and max ticks. That gives more matches but blurs the result, because the same model can score differently at different settings. Pick one settings group for a cleaner comparison.
+- Cost per 1,000 pts is the model's total cost divided by its total score in thousands, or `-` when its score is 0.
+
+### Average rank view
 
 - Only runs with the same settings (mode, tick speed, max ticks) are combined, so arena and benchmark runs are ranked separately. Pick the settings in the first select (newest first).
-- Games stopped early are left out and counted in a note. Runs saved without settings info (older format) are left out, with a count.
+- Games stopped early and games that ended by connection or setup errors are left out and counted in notes. Runs saved without settings info (older format) are left out, with a count.
 - Ranking uses the largest block of overlapping data: a set of scenarios and the models that have finished games in every one of them. Other models are listed under "Not enough data yet" with the number of scenarios they are missing.
 - In each scenario, models are ordered by mean score. Ties share the average of their positions. The overall order is the average rank across scenarios (lower is better), and ties in average rank share a rank number.
 - Wins is the number of scenarios where a model has the best mean score.
-- Cost per 1,000 pts is the model's total cost divided by its total score in thousands, or `-` when its score is 0.
+- Survival (ticks) and Lives left are the mean over the model's counted games.
 
-Filters: tick maze sizes, layout complexities or ghost counts to rank on those scenarios only. With nothing ticked in a group, all are included. If the filters leave too little overlapping data, the panel says so.
+### Filters and download
 
-Download CSV saves the table that is currently shown as `ranking.csv`.
+Filters: tick maze sizes, layout complexities or ghost counts to use only those scenarios. With nothing ticked in a group, all are included. They apply to both views. If the filters leave too little data, the panel says so.
+
+Download CSV saves the table that is currently shown, as `rating.csv` or `ranking.csv`.
 
 ## When a model fails
 

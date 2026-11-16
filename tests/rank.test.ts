@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildRanking,
   groupKey,
+  isConnectionFailure,
   listGroups,
   parseScenarioId,
   toCsv,
@@ -298,12 +299,43 @@ describe('buildRanking', () => {
   });
 });
 
+describe('connection failures', () => {
+  const dq = (id: string, lastError?: string) => game(id, S1, 5, { disqualified: true, ...(lastError === undefined ? {} : { lastError }) });
+
+  it('classifies disqualified games by their last error', () => {
+    expect(isConnectionFailure(dq('a', 'http 502: upstream 404'))).toBe(true);
+    expect(isConnectionFailure(dq('a'))).toBe(true);
+    expect(isConnectionFailure(dq('a', 'unparseable: "hi"'))).toBe(false);
+    expect(isConnectionFailure(dq('a', 'no move'))).toBe(false);
+    expect(isConnectionFailure(game('a', S1, 5, { lastError: 'network' }))).toBe(false);
+  });
+
+  it('excludes connection failures, counts them, and keeps unparseable disqualified games', () => {
+    const r = buildRanking(
+      [run('run-1', [game('a', S1, 100), game('b', S1, 80), dq('b', 'network'), dq('b'), dq('a', 'unparseable: "x"')])],
+      { settingsKey: key },
+    );
+    expect(r.connectionExcluded).toBe(2);
+    expect(r.games).toBe(3);
+    expect(rankOf(r, 'b')!.games).toBe(1);
+    expect(rankOf(r, 'a')!.games).toBe(2);
+  });
+
+  it('averages survival ticks and lives left over counted games', () => {
+    const r = buildRanking(
+      [run('run-1', [game('a', S1, 10, { survivedTicks: 100, livesLeft: 1 }), game('a', S1, 10, { survivedTicks: 300, livesLeft: 2 }), game('b', S1, 1)])],
+      { settingsKey: key },
+    );
+    expect(rankOf(r, 'a')).toMatchObject({ meanSurvivedTicks: 200, meanLivesLeft: 1.5 });
+  });
+});
+
 describe('toCsv', () => {
   it('writes a header, formatted numbers, empty for null, and quotes labels with commas', () => {
     const r = buildRanking([run('run-1', [game('a', S1, 500, { costUsd: 0.5 }), game('b', S1, 0)], { ...META, agents: [{ id: 'a', label: 'Model, "A"' }, { id: 'b', label: 'Model B' }] })], { settingsKey: key });
     const lines = toCsv(r.rows).split('\n');
-    expect(lines[0]).toBe('rank,model,avg_rank,scenarios,wins,games,mean_score,mean_level,mean_latency_ms,total_cost_usd,cost_per_1000_points');
-    expect(lines[1]).toBe('1,"Model, ""A""",1.00,1,1,1,500.0,1.0,100,0.5000,1.0000');
-    expect(lines[2]).toBe('2,Model B,2.00,1,0,1,0.0,1.0,100,0.0100,');
+    expect(lines[0]).toBe('rank,model,avg_rank,scenarios,wins,games,survival_ticks,lives_left,mean_score,mean_level,mean_latency_ms,total_cost_usd,cost_per_1000_points');
+    expect(lines[1]).toBe('1,"Model, ""A""",1.00,1,1,1,100,0.00,500.0,1.0,100,0.5000,1.0000');
+    expect(lines[2]).toBe('2,Model B,2.00,1,0,1,100,0.00,0.0,1.0,100,0.0100,');
   });
 });
