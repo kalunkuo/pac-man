@@ -12,6 +12,7 @@ import type { GameResult } from '../src/runner/types';
 
 const S1 = 'small-simple-1g';
 const S2 = 'large-complex-2g';
+const S3 = 'medium-medium-4g';
 
 const META: RunMeta = {
   mode: 'benchmark',
@@ -172,6 +173,121 @@ describe('buildRanking', () => {
       { settingsKey: key },
     );
     expect(rankOf(r, 'a')).toMatchObject({ meanScore: 20, meanLevel: 2, meanLatencyMs: 200, games: 2 });
+  });
+
+  it('ranks the block A, B, C in S1 and leaves a stray model with one shared scenario unranked', () => {
+    const r = buildRanking(
+      [run('run-1', [
+        game('a', S1, 100), game('b', S1, 80), game('c', S1, 60),
+        game('a', S2, 90), game('d', S2, 70),
+      ])],
+      { settingsKey: key },
+    );
+    expect(r.scenarios).toEqual([S1]);
+    expect(r.rows.map((x) => x.agentId)).toEqual(['a', 'b', 'c']);
+    expect(r.notRanked).toEqual([{ agentId: 'd', label: 'd', missing: 1 }]);
+  });
+
+  it('picks the block with the larger models x scenarios product (wide block wins 2x3=6 over 5x1=5)', () => {
+    const r = buildRanking(
+      [run('run-1', [
+        game('a', S1, 90), game('a', S2, 90), game('a', S3, 90),
+        game('b', S1, 80), game('b', S2, 80), game('b', S3, 80),
+        game('c', S1, 70), game('d', S1, 60), game('e', S1, 50),
+      ])],
+      { settingsKey: key },
+    );
+    expect(r.scenarios).toEqual([S2, S1, S3].sort());
+    expect(r.rows.map((x) => x.agentId)).toEqual(['a', 'b']);
+    expect(r.notRanked.map((x) => [x.agentId, x.missing])).toEqual([['c', 2], ['d', 2], ['e', 2]]);
+  });
+
+  it('picks the block with the larger product (narrow block wins 5x1=5 over 2x2=4)', () => {
+    const r = buildRanking(
+      [run('run-1', [
+        game('a', S1, 90), game('a', S2, 90),
+        game('b', S1, 80), game('b', S2, 80),
+        game('c', S1, 70), game('d', S1, 60), game('e', S1, 50),
+      ])],
+      { settingsKey: key },
+    );
+    expect(r.scenarios).toEqual([S1]);
+    expect(r.rows.map((x) => x.agentId)).toEqual(['a', 'b', 'c', 'd', 'e']);
+    expect(r.notRanked).toEqual([]);
+  });
+
+  it('prefers more models when the product ties (4x1=4 over 2x2=4)', () => {
+    const r = buildRanking(
+      [run('run-1', [
+        game('a', S1, 90), game('a', S2, 90),
+        game('b', S1, 80), game('b', S2, 80),
+        game('c', S1, 70), game('d', S1, 60),
+      ])],
+      { settingsKey: key },
+    );
+    expect(r.scenarios).toEqual([S1]);
+    expect(r.rows.map((x) => x.agentId)).toEqual(['a', 'b', 'c', 'd']);
+  });
+
+  it('skips results with non-finite score, level, latency or cost without counting them as games or truncated', () => {
+    const r = buildRanking(
+      [run('run-1', [
+        game('a', S1, 100), game('b', S1, 80),
+        game('b', S1, NaN), game('b', S1, 5, { costUsd: Infinity }),
+        game('b', S1, 5, { level: NaN }), game('b', S1, 5, { avgLatencyMs: -Infinity }),
+        game('b', S1, NaN, { truncated: true }),
+      ])],
+      { settingsKey: key },
+    );
+    expect(r.games).toBe(2);
+    expect(r.truncatedExcluded).toBe(0);
+    expect(rankOf(r, 'b')).toMatchObject({ meanScore: 80, games: 1, totalCostUsd: 0.01 });
+  });
+
+  it('orders equal average ranks by higher mean score and shares the rank number (1, 1, 3)', () => {
+    const r = buildRanking(
+      [run('run-1', [
+        game('a', S1, 100), game('a', S2, 20),
+        game('b', S1, 10), game('b', S2, 90),
+        game('c', S1, 5), game('c', S2, 5),
+      ])],
+      { settingsKey: key },
+    );
+    // a: ranks 1, 2 -> 1.5, mean 60. b: ranks 2, 1 -> 1.5, mean 50.
+    expect(r.rows.map((x) => [x.agentId, x.avgRank, x.rank])).toEqual([['a', 1.5, 1], ['b', 1.5, 1], ['c', 3, 3]]);
+  });
+
+  it('orders equal average rank and equal mean score by label', () => {
+    const meta: RunMeta = { ...META, agents: [{ id: 'a', label: 'Zed' }, { id: 'b', label: 'Alpha' }, { id: 'c', label: 'Mid' }] };
+    const r = buildRanking(
+      [run('run-1', [
+        game('a', S1, 100), game('a', S2, 20),
+        game('b', S1, 20), game('b', S2, 100),
+        game('c', S1, 1), game('c', S2, 1),
+      ], meta)],
+      { settingsKey: key },
+    );
+    expect(r.rows.map((x) => [x.label, x.rank])).toEqual([['Alpha', 1], ['Zed', 1], ['Mid', 3]]);
+  });
+
+  it('combines several games per model in a scenario by mean, and a tie on the mean shares the position', () => {
+    const r = buildRanking(
+      [run('run-1', [game('a', S1, 40), game('a', S1, 60), game('b', S1, 50), game('c', S1, 10)])],
+      { settingsKey: key },
+    );
+    expect(rankOf(r, 'a')).toMatchObject({ rank: 1, avgRank: 1.5, wins: 1, games: 2, meanScore: 50 });
+    expect(rankOf(r, 'b')).toMatchObject({ rank: 1, avgRank: 1.5, wins: 1, games: 1 });
+    expect(rankOf(r, 'c')).toMatchObject({ rank: 3, avgRank: 3 });
+  });
+
+  it('ignores runs saved without metadata', () => {
+    const r = buildRanking(
+      [run('run-1', [game('a', S1, 100), game('b', S1, 80)]), run('run-0', [game('c', S1, 1), game('c', S2, 1)], null)],
+      { settingsKey: key },
+    );
+    expect(r.games).toBe(2);
+    expect(r.rows.map((x) => x.agentId)).toEqual(['a', 'b']);
+    expect(r.notRanked).toEqual([]);
   });
 
   it('returns nothing ranked when fewer than two models share a scenario', () => {

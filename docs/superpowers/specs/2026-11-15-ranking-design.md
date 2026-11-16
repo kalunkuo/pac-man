@@ -18,8 +18,8 @@ A ranking of models that builds up automatically from every finished run, replac
 
 1. Only runs with the same settings (mode, tick speed, max ticks) are combined. Runs saved without metadata (older format) cannot be grouped and are left out, with a count shown.
 2. Games stopped early (`truncated: true`) are excluded and counted in a note.
-3. A scenario is considered when at least 2 models have completed games in it.
-4. Only models with completed games in every considered scenario are ranked. Other models are listed as "not enough data yet" with the number of considered scenarios they are missing.
+3. The ranking is computed on the largest block of overlapping data: the set of scenarios S and the set of models M that have completed games in every scenario of S, chosen to maximize |M| × |S| with at least 2 models and 1 scenario. Candidate scenario sets are each model's covered scenarios and the intersection of each pair of models' covered scenarios. Ties go to more models, then to the lexicographically first scenario list. This stops one model with partial data from removing other models from the table.
+4. Models in M are ranked. Other models with data are listed as "not enough data yet" with the number of scenarios in S they are missing.
 5. In each considered scenario, ranked models are ordered by mean score. Tied scores share the average of the positions they occupy.
 6. Overall order is by average rank across considered scenarios (lower is better). Ties in average rank share a rank number and are listed by higher mean score, then by label.
 7. Wins = number of considered scenarios where the model's mean score equals the best mean score.

@@ -56,7 +56,7 @@ export interface NotRanked {
 export interface Ranking {
   rows: RankRow[];
   notRanked: NotRanked[];
-  /** Scenario ids that were ranked on (at least 2 models have completed games). */
+  /** Scenario ids that were ranked on (largest block of overlapping data, see the ranking spec). */
   scenarios: string[];
   games: number;
   truncatedExcluded: number;
@@ -130,6 +130,37 @@ function rankScores(scores: { id: string; score: number }[]): Map<string, number
   return out;
 }
 
+/**
+ * Largest block of overlapping data: scenarios S and the models covering all of S, maximizing
+ * |models| x |S| (at least 2 models and 1 scenario). Candidates are each model's covered set and
+ * every pairwise intersection. Ties go to more models, then the lexicographically first list.
+ */
+function chooseBlock(cells: Map<string, Map<string, Acc>>): { scenarios: string[]; modelIds: string[] } {
+  const covered = [...cells.entries()].map(([id, per]) => ({ id, set: new Set(per.keys()) }));
+  const candidates = new Map<string, string[]>(); // joined sorted list -> list
+  const add = (set: Iterable<string>) => {
+    const list = [...set].sort();
+    if (list.length > 0) candidates.set(list.join(','), list);
+  };
+  for (const [i, m] of covered.entries()) {
+    add(m.set);
+    for (const n of covered.slice(i + 1)) add([...m.set].filter((s) => n.set.has(s)));
+  }
+
+  let best: { key: string; scenarios: string[]; modelIds: string[] } | null = null;
+  for (const [candKey, scenarios] of candidates) {
+    const modelIds = covered.filter((m) => scenarios.every((s) => m.set.has(s))).map((m) => m.id);
+    if (modelIds.length < 2) continue;
+    const better =
+      !best ||
+      modelIds.length * scenarios.length > best.modelIds.length * best.scenarios.length ||
+      (modelIds.length * scenarios.length === best.modelIds.length * best.scenarios.length &&
+        (modelIds.length > best.modelIds.length || (modelIds.length === best.modelIds.length && candKey < best.key)));
+    if (better) best = { key: candKey, scenarios, modelIds };
+  }
+  return best ? { scenarios: best.scenarios, modelIds: best.modelIds } : { scenarios: [], modelIds: [] };
+}
+
 export function buildRanking(runs: StoredRun[], filter: RankFilter): Ranking {
   const labels = new Map<string, string>();
   const cells = new Map<string, Map<string, Acc>>(); // agent -> scenario -> totals
@@ -142,6 +173,7 @@ export function buildRanking(runs: StoredRun[], filter: RankFilter): Ranking {
     for (const r of run.results) {
       const sc = parseScenarioId(r.scenarioId);
       if (!sc || !matches(sc, filter)) continue;
+      if (![r.score, r.level, r.avgLatencyMs, r.costUsd].every(Number.isFinite)) continue;
       if (r.truncated === true) {
         truncatedExcluded++;
         continue;
@@ -161,16 +193,14 @@ export function buildRanking(runs: StoredRun[], filter: RankFilter): Ranking {
 
   const labelOf = (id: string) => labels.get(id) ?? id;
 
-  const coverage = new Map<string, number>();
-  for (const perScenario of cells.values()) for (const s of perScenario.keys()) coverage.set(s, (coverage.get(s) ?? 0) + 1);
-  const considered = [...coverage.entries()].filter(([, n]) => n >= 2).map(([s]) => s).sort();
+  const { scenarios: considered, modelIds } = chooseBlock(cells);
+  const inBlock = new Set(modelIds);
 
   const rankedIds: string[] = [];
   const notRanked: NotRanked[] = [];
   for (const [agentId, perScenario] of [...cells.entries()].sort(([x], [y]) => x.localeCompare(y))) {
-    const missing = considered.filter((s) => !perScenario.has(s)).length;
-    if (considered.length > 0 && missing === 0) rankedIds.push(agentId);
-    else notRanked.push({ agentId, label: labelOf(agentId), missing });
+    if (inBlock.has(agentId)) rankedIds.push(agentId);
+    else notRanked.push({ agentId, label: labelOf(agentId), missing: considered.filter((s) => !perScenario.has(s)).length });
   }
 
   const rankSums = new Map<string, number>(rankedIds.map((id) => [id, 0]));
