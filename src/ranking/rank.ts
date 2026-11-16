@@ -62,7 +62,7 @@ export interface Ranking {
   truncatedExcluded: number;
 }
 
-const SCENARIO_RE = /^(small|medium|large)-(simple|medium|complex)-(1|2|4)g$/;
+const SCENARIO_RE = /^(small|medium|large|huge)-(simple|medium|complex)-(0|1|2|4)g$/;
 
 export function parseScenarioId(id: string): { size: SizeKey; complexity: Complexity; ghosts: number } | null {
   const m = SCENARIO_RE.exec(id);

@@ -1,10 +1,8 @@
 import type { Complexity } from '../engine/types';
 import { buildRanking, listGroups, toCsv, type RankRow, type StoredRun } from '../ranking/rank';
-import type { SizeKey } from '../runner/scenarios';
+import { GHOST_COUNTS, SIZE_KEYS, type SizeKey } from '../runner/scenarios';
 
-const SIZE_OPTIONS: SizeKey[] = ['small', 'medium', 'large'];
 const COMPLEXITY_OPTIONS: Complexity[] = ['simple', 'medium', 'complex'];
-const GHOST_OPTIONS = [1, 2, 4];
 
 const COLUMNS = [
   'Rank', 'Model', 'Avg rank', 'Scenarios', 'Wins', 'Games',
@@ -48,9 +46,9 @@ export function mountRankingPanel(container: HTMLElement): { update(runs: Stored
     return { fs, selected };
   }
 
-  const sizes = checkGroup<SizeKey>('Maze size', 'rank-size', SIZE_OPTIONS);
+  const sizes = checkGroup<SizeKey>('Maze size', 'rank-size', SIZE_KEYS);
   const complexities = checkGroup<Complexity>('Layout complexity', 'rank-complexity', COMPLEXITY_OPTIONS);
-  const ghosts = checkGroup<number>('Ghosts', 'rank-ghosts', GHOST_OPTIONS);
+  const ghosts = checkGroup<number>('Ghosts', 'rank-ghosts', GHOST_COUNTS);
 
   const filters = el('div');
   filters.append(sizes.fs, complexities.fs, ghosts.fs);

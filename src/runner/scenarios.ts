@@ -1,17 +1,19 @@
 import type { Complexity, ScenarioConfig } from '../engine/types';
 
-export type SizeKey = 'small' | 'medium' | 'large';
-export const SIZES: Record<SizeKey, number> = { small: 11, medium: 21, large: 31 };
+export type SizeKey = 'small' | 'medium' | 'large' | 'huge';
+export const SIZES: Record<SizeKey, number> = { small: 11, medium: 21, large: 31, huge: 61 };
+export const SIZE_KEYS: SizeKey[] = ['small', 'medium', 'large', 'huge'];
+export const GHOST_COUNTS: (0 | 1 | 2 | 4)[] = [0, 1, 2, 4];
 
 export interface Scenario {
   id: string;
   name: string;
   size: SizeKey;
   complexity: Complexity;
-  ghosts: 1 | 2 | 4;
+  ghosts: 0 | 1 | 2 | 4;
 }
 
-export function makeScenario(size: SizeKey, complexity: Complexity, ghosts: 1 | 2 | 4): Scenario {
+export function makeScenario(size: SizeKey, complexity: Complexity, ghosts: 0 | 1 | 2 | 4): Scenario {
   return {
     id: `${size}-${complexity}-${ghosts}g`,
     name: `${size}, ${complexity}, ${ghosts} ${ghosts === 1 ? 'ghost' : 'ghosts'}`,
@@ -21,12 +23,10 @@ export function makeScenario(size: SizeKey, complexity: Complexity, ghosts: 1 | 
   };
 }
 
-const SIZE_KEYS: SizeKey[] = ['small', 'medium', 'large'];
 const COMPLEXITIES: Complexity[] = ['simple', 'medium', 'complex'];
-const GHOSTS: (1 | 2 | 4)[] = [1, 2, 4];
 
 export const ALL_SCENARIOS: Scenario[] = SIZE_KEYS.flatMap((s) =>
-  COMPLEXITIES.flatMap((c) => GHOSTS.map((g) => makeScenario(s, c, g))),
+  COMPLEXITIES.flatMap((c) => GHOST_COUNTS.map((g) => makeScenario(s, c, g))),
 );
 
 export const PRESETS: Record<string, Scenario[]> = {
@@ -34,8 +34,15 @@ export const PRESETS: Record<string, Scenario[]> = {
   default: [makeScenario('small', 'simple', 1), makeScenario('large', 'complex', 2)],
   sizeSweep: SIZE_KEYS.map((s) => makeScenario(s, 'medium', 2)),
   complexitySweep: COMPLEXITIES.map((c) => makeScenario('medium', c, 2)),
+  noGhosts: (['small', 'medium', 'large'] as SizeKey[]).map((s) => makeScenario(s, 'medium', 0)),
+  huge: (['simple', 'complex'] as Complexity[]).map((c) => makeScenario('huge', c, 2)),
   full: ALL_SCENARIOS,
 };
+
+/** Prompt text grows with maze area; anything up to large (31x31) counts as 1. */
+export function promptCostFactor(s: Scenario): number {
+  return Math.max(1, SIZES[s.size] ** 2 / 1000);
+}
 
 export function scenarioConfig(
   s: Scenario,

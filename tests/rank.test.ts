@@ -50,7 +50,7 @@ const rankOf = (r: ReturnType<typeof buildRanking>, id: string) => r.rows.find((
 describe('parseScenarioId', () => {
   it('parses valid ids and rejects others', () => {
     expect(parseScenarioId('large-complex-2g')).toEqual({ size: 'large', complexity: 'complex', ghosts: 2 });
-    expect(parseScenarioId('huge-complex-2g')).toBeNull();
+    expect(parseScenarioId('huge-simple-0g')).toEqual({ size: 'huge', complexity: 'simple', ghosts: 0 });
     expect(parseScenarioId('small-simple-3g')).toBeNull();
     expect(parseScenarioId('nonsense')).toBeNull();
   });

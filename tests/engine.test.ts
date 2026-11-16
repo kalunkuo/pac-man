@@ -29,6 +29,24 @@ describe('levelConfig', () => {
     expect(levelConfig(base, 3)).toMatchObject({ width: 19, ghostCount: 2 });
     expect(levelConfig(base, 20)).toMatchObject({ width: 41, height: 41, ghostCount: 6 });
   });
+
+  it('never shrinks a huge maze', () => {
+    const base = config({ width: 61, height: 61 });
+    for (const level of [1, 2, 10]) expect(levelConfig(base, level)).toMatchObject({ width: 61, height: 61 });
+  });
+
+  it('keeps a 0-ghost base at 0 ghosts and still grows other bases', () => {
+    const none = config({ ghostCount: 0 });
+    for (const level of [1, 3, 9]) expect(levelConfig(none, level).ghostCount).toBe(0);
+    expect(levelConfig(config({ ghostCount: 1 }), 3).ghostCount).toBe(2);
+  });
+
+  it('runs a 0-ghost game without ghost deaths', () => {
+    const state = createGame(config({ ghostCount: 0 }), ['a']);
+    for (let i = 0; i < 100; i++) step(state);
+    expect(state.ghosts).toHaveLength(0);
+    expect(state.players[0].lives).toBe(3);
+  });
 });
 
 describe('createGame', () => {

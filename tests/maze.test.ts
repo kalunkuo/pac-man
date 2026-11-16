@@ -47,6 +47,18 @@ describe('generateMaze', () => {
     },
   );
 
+  it.each(['simple', 'medium', 'complex'] as Complexity[])(
+    'every open cell is reachable in a 61x61 maze (%s)',
+    (c) => {
+      for (const s of [1, 2]) {
+        const m = generateMaze(61, 61, c, s);
+        const dist = bfsDistances(m.walls, m.pacStart);
+        for (let y = 0; y < m.height; y++)
+          for (let x = 0; x < m.width; x++) if (!m.walls[y][x]) expect(dist[y][x]).toBeGreaterThanOrEqual(0);
+      }
+    },
+  );
+
   it('orders complexity: complex has no loops and the most dead ends', () => {
     expect(sumMetric('complex', 'loops')).toBe(0);
     expect(sumMetric('simple', 'loops')).toBeGreaterThan(sumMetric('medium', 'loops'));

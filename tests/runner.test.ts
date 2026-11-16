@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { aggregate, winners } from '../src/runner/aggregate';
 import { estimateRun } from '../src/runner/estimate';
-import { ALL_SCENARIOS, PRESETS, makeScenario, scenarioConfig } from '../src/runner/scenarios';
+import { ALL_SCENARIOS, PRESETS, makeScenario, promptCostFactor, scenarioConfig } from '../src/runner/scenarios';
 import type { GameResult } from '../src/runner/types';
 
 const result = (over: Partial<GameResult>): GameResult => ({
@@ -23,16 +23,40 @@ const result = (over: Partial<GameResult>): GameResult => ({
 });
 
 describe('scenarios', () => {
-  it('has 27 unique combinations', () => {
-    expect(ALL_SCENARIOS).toHaveLength(27);
-    expect(new Set(ALL_SCENARIOS.map((s) => s.id)).size).toBe(27);
+  it('has 48 unique combinations', () => {
+    expect(ALL_SCENARIOS).toHaveLength(48);
+    expect(new Set(ALL_SCENARIOS.map((s) => s.id)).size).toBe(48);
+    const ids = ALL_SCENARIOS.map((s) => s.id);
+    expect(ids).toContain('small-simple-0g');
+    expect(ids).toContain('huge-complex-2g');
+  });
+
+  it('names 0 ghosts in the plural', () => {
+    expect(makeScenario('small', 'simple', 0).name).toBe('small, simple, 0 ghosts');
+    expect(makeScenario('small', 'simple', 1).name).toBe('small, simple, 1 ghost');
+  });
+
+  it('defines the noGhosts and huge presets', () => {
+    expect(PRESETS.noGhosts.map((s) => s.id)).toEqual(['small-medium-0g', 'medium-medium-0g', 'large-medium-0g']);
+    expect(PRESETS.huge.map((s) => s.id)).toEqual(['huge-simple-2g', 'huge-complex-2g']);
+  });
+
+  it('scales the prompt cost factor with maze area', () => {
+    expect(promptCostFactor(makeScenario('small', 'simple', 1))).toBe(1);
+    expect(promptCostFactor(makeScenario('medium', 'simple', 1))).toBe(1);
+    expect(promptCostFactor(makeScenario('large', 'simple', 1))).toBe(1);
+    expect(promptCostFactor(makeScenario('huge', 'simple', 1))).toBeCloseTo(3.721);
+  });
+
+  it('builds a huge 0-ghost config', () => {
+    expect(scenarioConfig(makeScenario('huge', 'simple', 0), 1)).toMatchObject({ width: 61, height: 61, ghostCount: 0 });
   });
 
   it('presets only reference known scenarios', () => {
     const ids = new Set(ALL_SCENARIOS.map((s) => s.id));
     for (const list of Object.values(PRESETS)) for (const s of list) expect(ids.has(s.id)).toBe(true);
     expect(PRESETS.default).toHaveLength(2);
-    expect(PRESETS.full).toHaveLength(27);
+    expect(PRESETS.full).toHaveLength(48);
   });
 
   it('builds an engine config from a scenario', () => {
@@ -76,6 +100,35 @@ describe('estimateRun', () => {
     });
     expect(e.games).toBe(6);
     expect(e.maxCalls).toBe(600);
+  });
+
+  it('scales each scenario by its cost factor', () => {
+    const e = estimateRun({
+      scenarios: 2,
+      seeds: 2,
+      mode: 'benchmark',
+      agentCount: 2,
+      llmAgents: [{ estUsdPerCall: 0.01 }],
+      maxCallsPerGame: 100,
+      scenarioCostFactors: [1, 3.721],
+    });
+    expect(e.maxUsd).toBeCloseTo(2 * 100 * 0.01 * 4.721);
+    expect(e.games).toBe(8);
+    expect(e.maxCalls).toBe(400);
+  });
+
+  it('rejects a factor list of the wrong length', () => {
+    expect(() =>
+      estimateRun({
+        scenarios: 2,
+        seeds: 1,
+        mode: 'arena',
+        agentCount: 1,
+        llmAgents: [],
+        maxCallsPerGame: 1,
+        scenarioCostFactors: [1],
+      }),
+    ).toThrow();
   });
 
   it('is free with no llm agents', () => {

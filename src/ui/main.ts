@@ -6,7 +6,7 @@ import { createGame } from '../engine/engine';
 import { aggregate, winners } from '../runner/aggregate';
 import { estimateRun } from '../runner/estimate';
 import { runPlan } from '../runner/run-plan';
-import { ALL_SCENARIOS, PRESETS, makeScenario, scenarioConfig } from '../runner/scenarios';
+import { ALL_SCENARIOS, PRESETS, makeScenario, promptCostFactor, scenarioConfig } from '../runner/scenarios';
 import type { GameSession } from '../runner/session';
 import type { GameResult, Mode, RunPlan } from '../runner/types';
 import type { RunMeta, StoredRun } from '../ranking/rank';
@@ -114,6 +114,7 @@ function estimate(p: { plan: RunPlan; llmCosts: { estUsdPerCall: number }[] }) {
     agentCount: p.plan.agents.length,
     llmAgents: p.llmCosts,
     maxCallsPerGame: p.plan.maxCallsPerGame,
+    scenarioCostFactors: p.plan.scenarios.map(promptCostFactor),
   });
 }
 

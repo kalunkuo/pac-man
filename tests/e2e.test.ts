@@ -68,4 +68,18 @@ describe('runPlan (offline, baselines only)', () => {
     const full = await runPlan(plan('benchmark'));
     expect(full.every((r) => r.truncated === false)).toBe(true);
   });
+
+  it('completes a huge 0-ghost scenario', async () => {
+    const results = await runPlan({
+      mode: 'benchmark',
+      scenarios: [makeScenario('huge', 'simple', 0)],
+      seeds: [1],
+      agents: [new RandomAgent('random', 'Random', 1), new GreedyAgent('greedy', 'Greedy'), new PlannerAgent('planner', 'Planner')],
+      tickMs: 0,
+      maxCallsPerGame: 30,
+      maxTicks: 30,
+    });
+    expect(results).toHaveLength(3);
+    expect(results.every((r) => Number.isFinite(r.score))).toBe(true);
+  });
 });

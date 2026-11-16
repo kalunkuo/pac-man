@@ -21,9 +21,10 @@ export function levelConfig(base: ScenarioConfig, level: number): ScenarioConfig
   const grow = 4 * (level - 1);
   return {
     ...base,
-    width: Math.min(base.width + grow, 41),
-    height: Math.min(base.height + grow, 41),
-    ghostCount: Math.min(base.ghostCount + Math.floor((level - 1) / 2), 6),
+    // Never shrink a base larger than the cap (huge).
+    width: Math.min(base.width + grow, Math.max(41, base.width)),
+    height: Math.min(base.height + grow, Math.max(41, base.height)),
+    ghostCount: base.ghostCount === 0 ? 0 : Math.min(base.ghostCount + Math.floor((level - 1) / 2), 6),
     seed: base.seed + level - 1,
   };
 }
