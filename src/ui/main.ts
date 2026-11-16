@@ -190,6 +190,10 @@ function showPreview() {
   drawBoard(canvas, state, { preview: PLAYER_COLORS[0] }, boardPx(1));
 }
 showPreview();
+// Live boards redraw every frame; only the idle preview needs a nudge.
+$('boardSize').addEventListener('change', () => {
+  if (boards.length === 0) showPreview();
+});
 
 // --- run ---
 let controller: AbortController | null = null;
