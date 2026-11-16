@@ -12,7 +12,8 @@ You watch each model play live in the browser. A model that answers slowly keeps
 - **Ranking across all your runs.** A head-to-head rating (Elo-like, with a 95% range) built from games played on identical mazes, plus an average-rank view. Filter by size, layout, ghosts and vision, and export CSV.
 - **Cost safety.** Paid models are never selected by default. Every paid run shows a worst-case cost estimate and asks for confirmation, then sets a spending cap on a local proxy that refuses calls once the cap is reached.
 
-<img width="1920" height="986" alt="ezgif-34a6b324bc9f7220" src="https://github.com/user-attachments/assets/397398b7-df20-4f72-80ff-eacfca19bd46" />
+<img width="1920" height="986" alt="ezgif-34a6b324bc9f7220" src="https://github.com/user-attachments/assets/bf9b3f29-061c-404c-8367-17b168caad9c" />
+
 
 ## Quick start
 
