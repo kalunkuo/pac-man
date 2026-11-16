@@ -18,6 +18,8 @@ Two terminals:
     npm run server   # proxy on http://127.0.0.1:8787
     npm run dev      # UI, open the printed URL
 
+The proxy starts even when `config/.env` does not exist. Without a key, paid calls return a clear `OPENROUTER_API_KEY is not set` error and nothing is sent to OpenRouter.
+
 Baselines (random, greedy, shortest-path planner) need no key and cost nothing. The server is only needed for LLM models and for saving results to `results/`.
 
 ## Add Jev and other models

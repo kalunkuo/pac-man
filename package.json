@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "server": "tsx --env-file=config/.env src/server/index.ts",
+    "server": "tsx --env-file-if-exists=config/.env src/server/index.ts",
     "build": "tsc --noEmit && vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
