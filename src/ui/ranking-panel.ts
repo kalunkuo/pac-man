@@ -77,7 +77,6 @@ export function mountRankingPanel(container: HTMLElement): { update(runs: Stored
   const sizes = checkGroup<SizeKey>('Maze size', 'rank-size', SIZE_KEYS);
   const complexities = checkGroup<Complexity>('Layout complexity', 'rank-complexity', COMPLEXITY_OPTIONS);
   const ghosts = checkGroup<number>('Ghosts', 'rank-ghosts', GHOST_COUNTS);
-
   const visions = checkGroup<VisionKey>('Vision', 'rank-vision', ['full', 'fog']);
 
   const filters = el('div');
