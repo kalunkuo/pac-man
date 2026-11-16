@@ -84,9 +84,20 @@ function drawGhost(
   }
 }
 
-export function drawBoard(canvas: HTMLCanvasElement, state: GameState, colors: Record<string, string>): void {
+const BOARD_GAP = 16;
+const BOARD_CHROME = 16;
+
+/** Target board width in px. A numeric preference wins; null means Auto, which fits boards to the container. */
+export function boardTargetPx(boardCount: number, containerWidth: number, preference: number | null): number {
+  if (preference !== null) return Math.min(1200, Math.max(200, preference));
+  const cols = Math.max(1, Math.min(boardCount, Math.floor(containerWidth / 320)));
+  const px = Math.floor((containerWidth - BOARD_GAP * (cols - 1)) / cols) - BOARD_CHROME;
+  return Math.min(900, Math.max(240, px));
+}
+
+export function drawBoard(canvas: HTMLCanvasElement, state: GameState, colors: Record<string, string>, targetPx = 320): void {
   const { maze } = state;
-  const cell = Math.max(4, Math.floor(320 / maze.width));
+  const cell = Math.max(4, Math.floor(targetPx / maze.width));
   const w = maze.width * cell;
   const h = maze.height * cell;
   if (canvas.width !== w || canvas.height !== h) {

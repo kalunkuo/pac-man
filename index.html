@@ -6,15 +6,16 @@
     <title>Pacman arena</title>
     <style>
       body { font: 14px system-ui, sans-serif; margin: 0; background: #111; color: #eee; }
-      main { display: grid; grid-template-columns: 340px 1fr; gap: 16px; padding: 16px; }
+      main { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; padding: 16px; }
       fieldset { border: 1px solid #333; margin: 0 0 12px; padding: 8px 10px; }
       legend { color: #aaa; }
       label { display: block; margin: 2px 0; }
       input[type='number'] { width: 80px; }
       button { padding: 6px 12px; margin-right: 6px; cursor: pointer; }
       #boards { display: flex; flex-wrap: wrap; gap: 12px; }
-      .board { background: #000; padding: 6px; border: 1px solid #333; }
-      .board pre { margin: 4px 0 0; font-size: 12px; white-space: pre-wrap; max-width: 320px; }
+      .board { background: #000; padding: 6px; border: 1px solid #333; display: inline-block; max-width: 100%; box-sizing: border-box; }
+      canvas { max-width: 100%; height: auto; display: block; }
+      .board pre { margin: 4px 0 0; font-size: 12px; white-space: pre-wrap; max-width: 100%; }
       .heatmap { border-collapse: collapse; margin-top: 8px; }
       .heatmap td { border: 1px solid #333; padding: 4px 8px; text-align: right; }
       .heatmap tr:first-child td { text-align: center; color: #aaa; }
@@ -50,6 +51,15 @@
           <label>Tick (ms) <input id="tickMs" type="number" min="30" max="1000" value="150" /></label>
           <label>Max ticks per game <input id="maxTicks" type="number" min="50" max="5000" value="400" /></label>
           <label>Budget cap (USD) <input id="budget" type="number" min="0" step="0.1" value="0.5" /></label>
+          <label>Board size
+            <select id="boardSize">
+              <option value="" selected>Auto</option>
+              <option value="320">Small</option>
+              <option value="480">Medium</option>
+              <option value="720">Large</option>
+              <option value="960">Extra large</option>
+            </select>
+          </label>
         </fieldset>
         <button id="btnEstimate">Estimate</button>
         <button id="btnRun">Run</button>

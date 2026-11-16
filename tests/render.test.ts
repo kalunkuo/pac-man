@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { eyeOffset, mouthAngles } from '../src/ui/render';
+import { boardTargetPx, eyeOffset, mouthAngles } from '../src/ui/render';
 import type { Direction } from '../src/engine/types';
 
 const DIRS: Direction[] = ['RIGHT', 'DOWN', 'LEFT', 'UP'];
@@ -54,5 +54,40 @@ describe('eyeOffset', () => {
     expect(eyeOffset('LEFT')).toEqual({ dx: -1, dy: 0 });
     expect(eyeOffset('DOWN')).toEqual({ dx: 0, dy: 1 });
     expect(eyeOffset('UP')).toEqual({ dx: 0, dy: -1 });
+  });
+});
+
+describe('boardTargetPx', () => {
+  it('gives one board most of the page width, capped at 900', () => {
+    expect(boardTargetPx(1, 1200, null)).toBe(900);
+    expect(boardTargetPx(1, 1000, null)).toBe(900);
+    expect(boardTargetPx(1, 800, null)).toBe(784);
+  });
+
+  it('shares the row between several boards', () => {
+    // 3 cols: floor((1200 - 32) / 3) - 16 = 373
+    expect(boardTargetPx(3, 1200, null)).toBe(373);
+    expect(boardTargetPx(2, 1200, null)).toBe(576);
+  });
+
+  it('wraps many boards at about 320 px wide', () => {
+    // 6 boards on 1200 px still use 3 columns
+    expect(boardTargetPx(6, 1200, null)).toBe(boardTargetPx(3, 1200, null));
+  });
+
+  it('never goes below 240 on a narrow container', () => {
+    expect(boardTargetPx(1, 250, null)).toBe(240);
+    expect(boardTargetPx(1, 300, null)).toBe(284);
+  });
+
+  it('lets a preference override and clamps it to 200..1200', () => {
+    expect(boardTargetPx(1, 1200, 480)).toBe(480);
+    expect(boardTargetPx(5, 600, 720)).toBe(720);
+    expect(boardTargetPx(1, 1200, 50)).toBe(200);
+    expect(boardTargetPx(1, 1200, 5000)).toBe(1200);
+  });
+
+  it('Auto never exceeds 900', () => {
+    for (const w of [320, 800, 1200, 2400, 5000]) expect(boardTargetPx(1, w, null)).toBeLessThanOrEqual(900);
   });
 });

@@ -11,7 +11,7 @@ import type { GameSession } from '../runner/session';
 import type { GameResult, Mode, RunPlan } from '../runner/types';
 import type { RunMeta, StoredRun } from '../ranking/rank';
 import { describePlayer, renderHeatmap, type Metric } from './panels';
-import { PLAYER_COLORS, drawBoard } from './render';
+import { PLAYER_COLORS, boardTargetPx, drawBoard } from './render';
 import { mountRankingPanel } from './ranking-panel';
 import { validateSettings } from './settings';
 
@@ -130,9 +130,15 @@ type Board = { session: GameSession; canvas: HTMLCanvasElement; info: HTMLElemen
 let boards: Board[] = [];
 let colors: Record<string, string> = {};
 
+function boardPx(count: number): number {
+  const raw = ($('boardSize') as HTMLSelectElement).value;
+  return boardTargetPx(count, $('boards').clientWidth, raw === '' ? null : Number(raw));
+}
+
 function frame() {
+  const px = boardPx(boards.length);
   for (const b of boards) {
-    drawBoard(b.canvas, b.session.state, colors);
+    drawBoard(b.canvas, b.session.state, colors, px);
     b.info.textContent = b.session.state.players
       .map((p) => describePlayer(b.labels[p.id], p, b.session.stats[p.id], b.session.state.level))
       .join('\n');
@@ -165,7 +171,7 @@ function showPreview() {
   caption.textContent = 'Preview. Pick models and click Run to start a game.';
   wrap.append(canvas, caption);
   $('boards').replaceChildren(wrap);
-  drawBoard(canvas, state, { preview: PLAYER_COLORS[0] });
+  drawBoard(canvas, state, { preview: PLAYER_COLORS[0] }, boardPx(1));
 }
 showPreview();
 

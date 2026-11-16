@@ -54,6 +54,8 @@ Presets: `default` (2 scenarios, cheapest), `sizeSweep` (Small, Medium and Large
 
 ## Results
 
+The Board size selector in Run settings sets how large the boards are drawn. Auto (the default) fits the boards to the page width, so a single board is large and several boards share a row. The other choices fix the board width from Small (320 px) to Extra large (960 px), and a change applies immediately, even during a run.
+
 Before the first run the page shows a static preview board. Nothing plays on it, and the live boards replace it when a run starts.
 
 The heatmap shows models by scenario for the chosen metric (mean score, level, survival, latency). The winner line lists the highest mean score per scenario.
