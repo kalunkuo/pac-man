@@ -68,6 +68,43 @@ describe('encodeObservation', () => {
   });
 });
 
+describe('fog of war observation', () => {
+  const OLD_TEXT =
+    'Level 1, score 0, lives 3, you are moving LEFT.\nLegal moves: DOWN, RIGHT\n###########\n#Po......o#\n#.#####.#.#\n#.....#.#.#\n###.#.#.#.#\n#.....#.#.#\n#..##.#...#\n#.....#...#\n#.#.#####.#\n#o......Go#\n###########';
+
+  it('keeps the full-vision text exactly as before', () => {
+    const state = createGame(config({ seed: 1, ghostBehavior: 'chase' }), ['a']);
+    expect(encodeObservation(state, 'a').text).toBe(OLD_TEXT);
+  });
+
+  it('hides cells beyond the radius and adds the fog and position lines', () => {
+    const state = createGame(config({ vision: 3 }), ['a']);
+    state.maze.walls = parseWalls(['#############', '#...........#', '#############']);
+    state.players[0].pos = { x: 3, y: 1 };
+    state.pellets = new Set([key({ x: 6, y: 1 }), key({ x: 7, y: 1 })]);
+    state.powers = new Set();
+    state.ghosts = [{ pos: { x: 8, y: 1 }, dir: 'LEFT', behavior: 'chase' }];
+    const lines = encodeObservation(state, 'a').text.split('\n');
+    expect(lines[0]).toContain('you are moving LEFT');
+    expect(lines[1]).toBe('Position: (3, 1)');
+    expect(lines[2]).toContain('Legal moves:');
+    expect(lines[3]).toBe('Fog of war: cells more than 3 steps away are shown as ?.');
+    expect(lines.slice(4)).toEqual(['?#####???????', '#--P--.??????', '?#####???????']);
+    expect(lines.slice(4).join('')).not.toContain('G');
+  });
+
+  it('shows a ghost inside the radius and other players as p', () => {
+    const state = createGame(config({ vision: 3 }), ['a', 'b']);
+    state.maze.walls = parseWalls(['#############', '#...........#', '#############']);
+    state.players[0].pos = { x: 3, y: 1 };
+    state.players[1].pos = { x: 5, y: 1 };
+    state.pellets = new Set();
+    state.powers = new Set();
+    state.ghosts = [{ pos: { x: 2, y: 1 }, dir: 'LEFT', behavior: 'chase' }];
+    expect(encodeObservation(state, 'a').text.split('\n')[5]).toBe('#-GP-p-??????');
+  });
+});
+
 describe('baselines', () => {
   it('all baselines return a legal move in a real maze', async () => {
     const state = createGame(config(), ['a']);
@@ -113,6 +150,57 @@ describe('baselines', () => {
   it('firstStepToNearest returns null when nothing is reachable', () => {
     const walls = parseWalls(['#####', '#.#.#', '#####']);
     expect(firstStepToNearest(walls, { x: 1, y: 1 }, new Set(['3,1']), new Set())).toBeNull();
+  });
+
+  describe('under fog of war', () => {
+    const fogCorridor = (vision: number): GameState => {
+      const state = corridor();
+      state.config = { ...state.config, vision };
+      state.maze.walls = parseWalls(['#############', '#...........#', '#############']);
+      state.players[0].pos = { x: 3, y: 1 };
+      return state;
+    };
+    const agents = () => [new GreedyAgent('g', 'G'), new PlannerAgent('p', 'P')];
+
+    it('keeps the current direction when no pellet is inside the radius', async () => {
+      for (const agent of agents()) {
+        const state = fogCorridor(2);
+        state.pellets = new Set([key({ x: 10, y: 1 })]);
+        state.players[0].dir = 'LEFT';
+        expect((await agent.decide(ctxFor(state))).dir).toBe('LEFT');
+        state.players[0].dir = 'RIGHT';
+        expect((await agent.decide(ctxFor(state))).dir).toBe('RIGHT');
+      }
+    });
+
+    it('avoids reversing when the current direction is blocked, but falls back to it in a dead end', async () => {
+      for (const agent of agents()) {
+        const state = fogCorridor(2);
+        state.maze.walls = parseWalls(['#####', '#...#', '###.#', '#...#', '#####']);
+        state.players[0].pos = { x: 3, y: 1 };
+        state.players[0].dir = 'RIGHT';
+        state.pellets = new Set([key({ x: 1, y: 3 })]);
+        expect((await agent.decide(ctxFor(state))).dir).toBe('DOWN');
+        state.maze.walls = parseWalls(['#####', '#...#', '#####']);
+        expect((await agent.decide(ctxFor(state))).dir).toBe('LEFT');
+      }
+    });
+
+    it('goes for a pellet inside the radius', async () => {
+      for (const agent of agents()) {
+        const state = fogCorridor(3);
+        state.pellets = new Set([key({ x: 6, y: 1 })]);
+        state.players[0].dir = 'LEFT';
+        expect((await agent.decide(ctxFor(state))).dir).toBe('RIGHT');
+      }
+    });
+
+    it('planner ignores a ghost outside the radius', async () => {
+      const state = fogCorridor(3);
+      state.pellets = new Set([key({ x: 5, y: 1 })]);
+      state.ghosts = [{ pos: { x: 7, y: 1 }, dir: 'LEFT', behavior: 'chase' }];
+      expect((await new PlannerAgent('p', 'P').decide(ctxFor(state))).dir).toBe('RIGHT');
+    });
   });
 
   it('scripted agent cycles through its directions', async () => {

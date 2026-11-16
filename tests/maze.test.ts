@@ -67,6 +67,24 @@ describe('generateMaze', () => {
     expect(sumMetric('medium', 'deadEnds')).toBeGreaterThan(sumMetric('simple', 'deadEnds'));
   });
 
+  it('labyrinth has no loops and every open cell is reachable', () => {
+    for (const s of SEEDS) {
+      const m = generateMaze(21, 21, 'labyrinth', s);
+      expect(m.metrics.loops).toBe(0);
+      const dist = bfsDistances(m.walls, m.pacStart);
+      for (let y = 0; y < m.height; y++)
+        for (let x = 0; x < m.width; x++) if (!m.walls[y][x]) expect(dist[y][x]).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it('labyrinth has longer corridors than complex and is deterministic per seed', () => {
+    const total = (c: Complexity) =>
+      SEEDS.reduce((acc, s) => acc + generateMaze(31, 31, c, s).metrics.avgCorridorLength, 0);
+    expect(total('labyrinth')).toBeGreaterThan(total('complex'));
+    expect(generateMaze(31, 31, 'labyrinth', 2).walls).toEqual(generateMaze(31, 31, 'labyrinth', 2).walls);
+    expect(generateMaze(31, 31, 'labyrinth', 2).walls).not.toEqual(generateMaze(31, 31, 'labyrinth', 3).walls);
+  });
+
   it('places pellets only on reachable cells, away from the starts', () => {
     const m = generateMaze(21, 21, 'medium', 1);
     const dist = bfsDistances(m.walls, m.pacStart);

@@ -50,8 +50,10 @@ const rankOf = (r: ReturnType<typeof buildRanking>, id: string) => r.rows.find((
 
 describe('parseScenarioId', () => {
   it('parses valid ids and rejects others', () => {
-    expect(parseScenarioId('large-complex-2g')).toEqual({ size: 'large', complexity: 'complex', ghosts: 2 });
-    expect(parseScenarioId('huge-simple-0g')).toEqual({ size: 'huge', complexity: 'simple', ghosts: 0 });
+    expect(parseScenarioId('large-complex-2g')).toEqual({ size: 'large', complexity: 'complex', ghosts: 2, vision: 'full' });
+    expect(parseScenarioId('huge-simple-0g')).toEqual({ size: 'huge', complexity: 'simple', ghosts: 0, vision: 'full' });
+    expect(parseScenarioId('medium-labyrinth-1g-fog')).toEqual({ size: 'medium', complexity: 'labyrinth', ghosts: 1, vision: 'fog' });
+    expect(parseScenarioId('small-simple-1g-mist')).toBeNull();
     expect(parseScenarioId('small-simple-3g')).toBeNull();
     expect(parseScenarioId('nonsense')).toBeNull();
   });
@@ -104,6 +106,14 @@ describe('buildRanking', () => {
     expect(buildRanking(base, { settingsKey: key, complexities: ['complex'] }).scenarios).toEqual([S2]);
     expect(buildRanking(base, { settingsKey: key, ghosts: [1] }).scenarios).toEqual([S1]);
     expect(buildRanking(base, { settingsKey: key, ghosts: [4] }).rows).toEqual([]);
+  });
+
+  it('filters by vision', () => {
+    const fog = 'small-simple-1g-fog';
+    const runs = [run('run-1', [game('a', S1, 100), game('b', S1, 80), game('a', fog, 10), game('b', fog, 20)])];
+    expect(buildRanking(runs, { settingsKey: key, visions: ['fog'] }).scenarios).toEqual([fog]);
+    expect(buildRanking(runs, { settingsKey: key, visions: ['full'] }).scenarios).toEqual([S1]);
+    expect(buildRanking(runs, { settingsKey: key, visions: [] }).scenarios.sort()).toEqual([fog, S1].sort());
   });
 
   it('tied scores share the average of their positions', () => {

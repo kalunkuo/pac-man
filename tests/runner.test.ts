@@ -23,12 +23,34 @@ const result = (over: Partial<GameResult>): GameResult => ({
 });
 
 describe('scenarios', () => {
-  it('has 48 unique combinations', () => {
-    expect(ALL_SCENARIOS).toHaveLength(48);
-    expect(new Set(ALL_SCENARIOS.map((s) => s.id)).size).toBe(48);
+  it('has 128 unique combinations', () => {
+    expect(ALL_SCENARIOS).toHaveLength(128);
+    expect(new Set(ALL_SCENARIOS.map((s) => s.id)).size).toBe(128);
     const ids = ALL_SCENARIOS.map((s) => s.id);
     expect(ids).toContain('small-simple-0g');
     expect(ids).toContain('huge-complex-2g');
+    expect(ids).toContain('medium-labyrinth-1g-fog');
+  });
+
+  it('names and ids fog scenarios', () => {
+    const s = makeScenario('small', 'labyrinth', 1, 'fog');
+    expect(s).toMatchObject({ id: 'small-labyrinth-1g-fog', name: 'small, labyrinth, 1 ghost, fog', vision: 'fog' });
+    expect(makeScenario('small', 'labyrinth', 1).vision).toBe('full');
+    expect(makeScenario('small', 'labyrinth', 1).id).toBe('small-labyrinth-1g');
+  });
+
+  it('keeps the full preset to full vision and defines fogSweep', () => {
+    expect(PRESETS.full).toHaveLength(64);
+    expect(PRESETS.full.every((s) => s.vision === 'full')).toBe(true);
+    expect(PRESETS.fogSweep).toHaveLength(6);
+    expect(PRESETS.fogSweep.every((s) => s.vision === 'fog' && s.ghosts === 1)).toBe(true);
+    expect(new Set(PRESETS.fogSweep.map((s) => s.size))).toEqual(new Set(['small', 'medium']));
+    expect(new Set(PRESETS.fogSweep.map((s) => s.complexity))).toEqual(new Set(['simple', 'complex', 'labyrinth']));
+  });
+
+  it('sets the engine vision from the scenario', () => {
+    expect(scenarioConfig(makeScenario('small', 'simple', 1, 'fog'), 1).vision).toBe(4);
+    expect(scenarioConfig(makeScenario('small', 'simple', 1), 1).vision).toBeNull();
   });
 
   it('names 0 ghosts in the plural', () => {
@@ -60,7 +82,6 @@ describe('scenarios', () => {
     const ids = new Set(ALL_SCENARIOS.map((s) => s.id));
     for (const list of Object.values(PRESETS)) for (const s of list) expect(ids.has(s.id)).toBe(true);
     expect(PRESETS.default).toHaveLength(2);
-    expect(PRESETS.full).toHaveLength(48);
   });
 
   it('builds an engine config from a scenario', () => {

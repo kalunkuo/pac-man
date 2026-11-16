@@ -5,6 +5,7 @@ import {
   hasFiniteNumbers,
   isConnectionFailure,
   parseScenarioId,
+  scenarioMatches,
   type RankFilter,
   type StoredRun,
 } from './rank';
@@ -115,12 +116,7 @@ export function buildRatings(runs: StoredRun[], filter: Omit<RankFilter, 'settin
 
   const inScenario = (id: string): boolean => {
     const sc = parseScenarioId(id);
-    return (
-      sc !== null &&
-      (!filter.sizes?.length || filter.sizes.includes(sc.size)) &&
-      (!filter.complexities?.length || filter.complexities.includes(sc.complexity)) &&
-      (!filter.ghosts?.length || filter.ghosts.includes(sc.ghosts))
-    );
+    return sc !== null && scenarioMatches(sc, filter);
   };
 
   for (const run of [...runs].sort((a, b) => a.runId.localeCompare(b.runId))) {

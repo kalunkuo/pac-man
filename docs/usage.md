@@ -1,6 +1,6 @@
 # Pacman arena usage
 
-Models compete at Pac-Man across a grid of maze sizes, obstacle complexity and ghost counts. All model calls go through OpenRouter via a local proxy that enforces a budget cap.
+Models compete at Pac-Man across a grid of maze sizes, layouts, ghost counts and vision settings. All model calls go through OpenRouter via a local proxy that enforces a budget cap.
 
 ## Setup
 
@@ -35,9 +35,13 @@ Both run in real time. A model keeps its last direction until its next answer ar
 
 ## Scenarios
 
-Size: small 11x11, medium 21x21, large 31x31, huge 61x61. Complexity: simple (open, many loops), medium (classic corridors), complex (perfect maze, many dead ends, no loops). Ghosts: 0, 1, 2 or 4 (0 is a pure navigation control with nothing chasing the player) with mixed chase, ambush and random behavior. Each level grows the maze by 4 cells per side (cap 41) and adds a ghost every second level (cap 6). Growth never shrinks a huge maze, and a 0-ghost scenario stays at 0 ghosts.
+Size: small 11x11, medium 21x21, large 31x31, huge 61x61. Layout: simple (open, many loops), medium (classic corridors), complex (perfect maze, many dead ends, no loops), labyrinth (perfect maze like complex, but carved with a straight bias so corridors are long and winding, with no loops). Ghosts: 0, 1, 2 or 4 (0 is a pure navigation control with nothing chasing the player) with mixed chase, ambush and random behavior. Each level grows the maze by 4 cells per side (cap 41) and adds a ghost every second level (cap 6). Growth never shrinks a huge maze, and a 0-ghost scenario stays at 0 ghosts.
 
-Presets: `default` (2 scenarios, cheapest), `sizeSweep` (Small, Medium and Large only), `complexitySweep`, `noGhosts` (small, medium and large, medium layout, 0 ghosts), `huge` (huge, simple and complex layouts, 2 ghosts), `full` (48). Use "Custom selection" to pick any combination.
+Vision: full (the default) or fog of war. In a fog scenario, a player sees only cells within 4 steps (Manhattan distance, ignoring walls). Every other cell is shown to the model as `?`, whether it holds a wall, pellet, ghost or another player. The model's own cell stays `P`. The prompt text gains a `Position: (x, y)` line (x is the column, y the row, both from 0) and a line explaining the fog. The free baselines see only the same cells: greedy and planner ignore pellets and ghosts beyond 4 steps, and when no pellet is visible they keep moving in their current direction (turning without reversing when blocked). The spectator board still draws the whole maze, so you can watch what the models cannot see. Fog scenario ids and names end in `-fog` and `, fog`.
+
+There are 128 scenarios: 4 sizes x 4 layouts x 4 ghost counts x 2 vision settings.
+
+Presets: `default` (2 scenarios, cheapest), `sizeSweep` (Small, Medium and Large only), `complexitySweep`, `noGhosts` (small, medium and large, medium layout, 0 ghosts), `huge` (huge, simple and complex layouts, 2 ghosts), `full` (the 64 full-vision scenarios), `fogSweep` (small and medium, simple, complex and labyrinth layouts, 1 ghost, fog: 6 scenarios). The `full` preset stays full vision on purpose, so it does not double its cost. Fog scenarios are listed under "Custom selection" (which scrolls) and in `fogSweep`.
 
 ## Controlling cost
 
@@ -94,7 +98,7 @@ The Rating view compares models head to head across all runs, so you do not have
 
 ### Filters and download
 
-Filters: tick maze sizes, layout complexities or ghost counts to use only those scenarios. With nothing ticked in a group, all are included. They apply to both views. If the filters leave too little data, the panel says so.
+Filters: tick maze sizes, layouts, ghost counts or vision (full, fog) to use only those scenarios. With nothing ticked in a group, all are included. They apply to both views. If the filters leave too little data, the panel says so.
 
 Download CSV saves the table that is currently shown, as `rating.csv` or `ranking.csv`.
 

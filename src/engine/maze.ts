@@ -3,9 +3,9 @@ import { makeRng, shuffle, type Rng } from './rng';
 import type { Complexity, Maze, MazeMetrics, Vec } from './types';
 
 /** Share of dead ends that get a wall removed (creates loops). */
-const BRAID: Record<Complexity, number> = { simple: 1, medium: 0.5, complex: 0 };
+const BRAID: Record<Complexity, number> = { simple: 1, medium: 0.5, complex: 0, labyrinth: 0 };
 /** Share of interior cells knocked open at random (creates open areas). */
-const EXTRA_OPEN: Record<Complexity, number> = { simple: 0.06, medium: 0, complex: 0 };
+const EXTRA_OPEN: Record<Complexity, number> = { simple: 0.06, medium: 0, complex: 0, labyrinth: 0 };
 
 const CELL_STEPS: [number, number][] = [
   [2, 0],
@@ -23,7 +23,7 @@ export function generateMaze(width: number, height: number, complexity: Complexi
   const rng = makeRng(seed);
   const walls: boolean[][] = Array.from({ length: h }, () => Array<boolean>(w).fill(true));
 
-  carve(walls, rng);
+  carve(walls, rng, complexity === 'labyrinth');
   braid(walls, BRAID[complexity], rng);
   openRandomCells(walls, EXTRA_OPEN[complexity], rng);
 
@@ -68,27 +68,44 @@ export function generateMaze(width: number, height: number, complexity: Complexi
 
 const manhattan = (a: Vec, b: Vec): number => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
-/** Depth-first carve from (1,1) over odd coordinates: a perfect maze. */
-function carve(walls: boolean[][], rng: Rng): void {
+/** Chance of carrying on in the same direction when that is possible (labyrinth only). */
+const STRAIGHT_BIAS = 0.85;
+
+/**
+ * Depth-first carve from (1,1) over odd coordinates: a perfect maze. With `straight`, a carve keeps
+ * its previous direction most of the time, which makes long winding corridors.
+ */
+function carve(walls: boolean[][], rng: Rng, straight: boolean): void {
   const h = walls.length;
   const w = walls[0].length;
   walls[1][1] = false;
   const stack: Vec[] = [{ x: 1, y: 1 }];
+  const arrived: ([number, number] | null)[] = [null]; // step that led to each stack cell
   while (stack.length > 0) {
     const c = stack[stack.length - 1];
-    const next = shuffle([...CELL_STEPS], rng).find(([dx, dy]) => {
+    const canStep = ([dx, dy]: [number, number]) => {
       const nx = c.x + dx;
       const ny = c.y + dy;
       return nx > 0 && ny > 0 && nx < w - 1 && ny < h - 1 && walls[ny][nx];
-    });
+    };
+    const same = straight ? arrived[arrived.length - 1] : null;
+    const canContinue = same !== null && canStep(same);
+    let next: [number, number] | undefined;
+    if (canContinue && rng() < STRAIGHT_BIAS) next = same;
+    else {
+      // After a failed roll the straight step is only taken when it is the sole option.
+      next = shuffle(CELL_STEPS.filter((st) => st !== same), rng).find(canStep) ?? (canContinue ? same : undefined);
+    }
     if (!next) {
       stack.pop();
+      arrived.pop();
       continue;
     }
     const [dx, dy] = next;
     walls[c.y + dy / 2][c.x + dx / 2] = false;
     walls[c.y + dy][c.x + dx] = false;
     stack.push({ x: c.x + dx, y: c.y + dy });
+    arrived.push(next);
   }
 }
 

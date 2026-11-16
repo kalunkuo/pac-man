@@ -5,7 +5,7 @@ export interface Vec {
   x: number;
   y: number;
 }
-export type Complexity = 'simple' | 'medium' | 'complex';
+export type Complexity = 'simple' | 'medium' | 'complex' | 'labyrinth';
 export type GhostBehavior = 'chase' | 'ambush' | 'random';
 
 export interface ScenarioConfig {
@@ -17,6 +17,8 @@ export interface ScenarioConfig {
   seed: number;
   lives: number;
   maxTicks: number;
+  /** Manhattan radius of visible cells; null means the whole maze is visible. */
+  vision: number | null;
 }
 
 export interface MazeMetrics {

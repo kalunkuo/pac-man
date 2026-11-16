@@ -1,11 +1,11 @@
 import type { Complexity } from '../engine/types';
 import { buildRanking, listGroups, toCsv, type StoredRun } from '../ranking/rank';
 import { buildRatings, ratingsToCsv } from '../ranking/rating';
-import { GHOST_COUNTS, SIZE_KEYS, type SizeKey } from '../runner/scenarios';
+import { GHOST_COUNTS, SIZE_KEYS, type SizeKey, type VisionKey } from '../runner/scenarios';
 import { reconcileChoice } from './ranking-state';
 
 const ALL_SETTINGS = '';
-const COMPLEXITY_OPTIONS: Complexity[] = ['simple', 'medium', 'complex'];
+const COMPLEXITY_OPTIONS: Complexity[] = ['simple', 'medium', 'complex', 'labyrinth'];
 
 type View = 'rating' | 'rank';
 
@@ -78,8 +78,10 @@ export function mountRankingPanel(container: HTMLElement): { update(runs: Stored
   const complexities = checkGroup<Complexity>('Layout complexity', 'rank-complexity', COMPLEXITY_OPTIONS);
   const ghosts = checkGroup<number>('Ghosts', 'rank-ghosts', GHOST_COUNTS);
 
+  const visions = checkGroup<VisionKey>('Vision', 'rank-vision', ['full', 'fog']);
+
   const filters = el('div');
-  filters.append(sizes.fs, complexities.fs, ghosts.fs);
+  filters.append(sizes.fs, complexities.fs, ghosts.fs, visions.fs);
 
   const table = el('table');
   table.className = 'heatmap';
@@ -141,6 +143,7 @@ export function mountRankingPanel(container: HTMLElement): { update(runs: Stored
         sizes: sizes.selected(),
         complexities: complexities.selected(),
         ghosts: ghosts.selected(),
+        visions: visions.selected(),
       });
       hasRows = ratings.rows.length > 0;
       currentCsv = ratingsToCsv(ratings.rows);
@@ -183,6 +186,7 @@ export function mountRankingPanel(container: HTMLElement): { update(runs: Stored
         sizes: sizes.selected(),
         complexities: complexities.selected(),
         ghosts: ghosts.selected(),
+        visions: visions.selected(),
       });
       hasRows = ranking.rows.length > 0;
       currentCsv = toCsv(ranking.rows);

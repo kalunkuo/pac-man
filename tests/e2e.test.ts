@@ -82,4 +82,18 @@ describe('runPlan (offline, baselines only)', () => {
     expect(results).toHaveLength(3);
     expect(results.every((r) => Number.isFinite(r.score))).toBe(true);
   });
+
+  it('completes a small labyrinth fog scenario', async () => {
+    const results = await runPlan({
+      mode: 'benchmark',
+      scenarios: [makeScenario('small', 'labyrinth', 1, 'fog')],
+      seeds: [1],
+      agents: [new RandomAgent('random', 'Random', 1), new GreedyAgent('greedy', 'Greedy'), new PlannerAgent('planner', 'Planner')],
+      tickMs: 0,
+      maxCallsPerGame: 60,
+      maxTicks: 60,
+    });
+    expect(results).toHaveLength(3);
+    expect(results.every((r) => Number.isFinite(r.score))).toBe(true);
+  });
 });

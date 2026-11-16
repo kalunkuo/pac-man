@@ -341,7 +341,7 @@ $('btnRun').onclick = async () => {
         maxTicks: p.plan.maxTicks,
         tickMs: p.plan.tickMs,
         agents: shownAgents,
-        scenarios: p.plan.scenarios.map(({ id, name, size, complexity, ghosts }) => ({ id, name, size, complexity, ghosts })),
+        scenarios: p.plan.scenarios.map(({ id, name, size, complexity, ghosts, vision }) => ({ id, name, size, complexity, ghosts, vision })),
       };
       const runId = `run-${Date.now()}`;
       sessionRuns.push({ runId, meta, results: out });

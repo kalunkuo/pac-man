@@ -1,4 +1,4 @@
-import { DIRS, key, legalMoves, moved, isOpen } from '../engine/grid';
+import { DIRS, OPPOSITE, key, legalMoves, moved, isOpen } from '../engine/grid';
 import { makeRng, type Rng } from '../engine/rng';
 import type { Direction, Vec } from '../engine/types';
 import type { Agent, DecideContext, Decision } from './types';
@@ -35,6 +35,16 @@ export function firstStepToNearest(
   return null;
 }
 
+/** Fog of war: the radius a baseline can see, or null with full vision. */
+const visionOf = (ctx: DecideContext): number | null => ctx.state.config.vision;
+
+/** Without a visible pellet, keep going; otherwise turn without reversing unless that is the only way. */
+function wander(ctx: DecideContext, moves: Direction[]): Direction {
+  const dir = me(ctx).dir;
+  if (moves.includes(dir)) return dir;
+  return moves.find((d) => d !== OPPOSITE[dir]) ?? moves[0];
+}
+
 export class RandomAgent implements Agent {
   readonly kind = 'baseline' as const;
   private readonly rng: Rng;
@@ -55,12 +65,15 @@ export class GreedyAgent implements Agent {
     const { state } = ctx;
     const pos = me(ctx).pos;
     const moves = legalMoves(state.maze.walls, pos);
-    const targets = [...state.pellets, ...state.powers].map((k) => {
-      const [x, y] = k.split(',').map(Number);
-      return { x, y };
-    });
+    const radius = visionOf(ctx);
+    const targets = [...state.pellets, ...state.powers]
+      .map((k) => {
+        const [x, y] = k.split(',').map(Number);
+        return { x, y };
+      })
+      .filter((t) => radius === null || manhattan(pos, t) <= radius);
     if (moves.length === 0) return free(null);
-    if (targets.length === 0) return free(moves[0]);
+    if (targets.length === 0) return free(radius === null ? moves[0] : wander(ctx, moves));
     const cost = (d: Direction) => Math.min(...targets.map((t) => manhattan(moved(pos, d), t)));
     let best = moves[0];
     for (const d of moves) if (cost(d) < cost(best)) best = d;
@@ -76,7 +89,9 @@ export class PlannerAgent implements Agent {
     const { state } = ctx;
     const pos = me(ctx).pos;
     const walls = state.maze.walls;
-    const threats = state.frightenedTicks > 0 ? [] : state.ghosts.map((g) => g.pos);
+    const radius = visionOf(ctx);
+    const visible = (p: Vec) => radius === null || manhattan(pos, p) <= radius;
+    const threats = state.frightenedTicks > 0 ? [] : state.ghosts.map((g) => g.pos).filter(visible);
 
     const blocked = new Set<string>();
     for (const t of threats)
@@ -85,12 +100,18 @@ export class PlannerAgent implements Agent {
           if (Math.abs(dx) + Math.abs(dy) <= 2) blocked.add(key({ x: t.x + dx, y: t.y + dy }));
     blocked.delete(key(pos));
 
-    const targets = new Set([...state.pellets, ...state.powers]);
+    const targets = new Set(
+      [...state.pellets, ...state.powers].filter((k) => {
+        const [x, y] = k.split(',').map(Number);
+        return visible({ x, y });
+      }),
+    );
+    const moves = legalMoves(walls, pos);
+    if (moves.length === 0) return free(null);
+    if (radius !== null && targets.size === 0) return free(wander(ctx, moves));
     const planned = firstStepToNearest(walls, pos, targets, blocked);
     if (planned) return free(planned);
 
-    const moves = legalMoves(walls, pos);
-    if (moves.length === 0) return free(null);
     if (threats.length === 0) return free(moves[0]);
     const safety = (d: Direction) => Math.min(...threats.map((t) => manhattan(moved(pos, d), t)));
     let best = moves[0];

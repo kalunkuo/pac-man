@@ -4,6 +4,9 @@ export type SizeKey = 'small' | 'medium' | 'large' | 'huge';
 export const SIZES: Record<SizeKey, number> = { small: 11, medium: 21, large: 31, huge: 61 };
 export const SIZE_KEYS: SizeKey[] = ['small', 'medium', 'large', 'huge'];
 export const GHOST_COUNTS: (0 | 1 | 2 | 4)[] = [0, 1, 2, 4];
+export type VisionKey = 'full' | 'fog';
+/** Manhattan radius a player sees in fog scenarios. */
+export const FOG_RADIUS = 4;
 
 export interface Scenario {
   id: string;
@@ -11,22 +14,33 @@ export interface Scenario {
   size: SizeKey;
   complexity: Complexity;
   ghosts: 0 | 1 | 2 | 4;
+  vision: VisionKey;
 }
 
-export function makeScenario(size: SizeKey, complexity: Complexity, ghosts: 0 | 1 | 2 | 4): Scenario {
+export function makeScenario(
+  size: SizeKey,
+  complexity: Complexity,
+  ghosts: 0 | 1 | 2 | 4,
+  vision: VisionKey = 'full',
+): Scenario {
+  const fog = vision === 'fog';
   return {
-    id: `${size}-${complexity}-${ghosts}g`,
-    name: `${size}, ${complexity}, ${ghosts} ${ghosts === 1 ? 'ghost' : 'ghosts'}`,
+    id: `${size}-${complexity}-${ghosts}g${fog ? '-fog' : ''}`,
+    name: `${size}, ${complexity}, ${ghosts} ${ghosts === 1 ? 'ghost' : 'ghosts'}${fog ? ', fog' : ''}`,
     size,
     complexity,
     ghosts,
+    vision,
   };
 }
 
 const COMPLEXITIES: Complexity[] = ['simple', 'medium', 'complex'];
+const LAYOUTS: Complexity[] = [...COMPLEXITIES, 'labyrinth'];
+const VISIONS: VisionKey[] = ['full', 'fog'];
 
-export const ALL_SCENARIOS: Scenario[] = SIZE_KEYS.flatMap((s) =>
-  COMPLEXITIES.flatMap((c) => GHOST_COUNTS.map((g) => makeScenario(s, c, g))),
+// Full-vision scenarios come first so the `full` preset is a prefix.
+export const ALL_SCENARIOS: Scenario[] = VISIONS.flatMap((v) =>
+  SIZE_KEYS.flatMap((s) => LAYOUTS.flatMap((c) => GHOST_COUNTS.map((g) => makeScenario(s, c, g, v)))),
 );
 
 export const PRESETS: Record<string, Scenario[]> = {
@@ -36,7 +50,11 @@ export const PRESETS: Record<string, Scenario[]> = {
   complexitySweep: COMPLEXITIES.map((c) => makeScenario('medium', c, 2)),
   noGhosts: (['small', 'medium', 'large'] as SizeKey[]).map((s) => makeScenario(s, 'medium', 0)),
   huge: (['simple', 'complex'] as Complexity[]).map((c) => makeScenario('huge', c, 2)),
-  full: ALL_SCENARIOS,
+  // Full vision only: fog scenarios are opt-in so a default sweep does not double its cost.
+  full: ALL_SCENARIOS.filter((s) => s.vision === 'full'),
+  fogSweep: (['small', 'medium'] as SizeKey[]).flatMap((s) =>
+    (['simple', 'complex', 'labyrinth'] as Complexity[]).map((c) => makeScenario(s, c, 1, 'fog')),
+  ),
 };
 
 /**
@@ -61,5 +79,6 @@ export function scenarioConfig(
     seed,
     lives: opts.lives ?? 3,
     maxTicks: opts.maxTicks ?? 800,
+    vision: s.vision === 'fog' ? FOG_RADIUS : null,
   };
 }

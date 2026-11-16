@@ -1,5 +1,5 @@
 import type { Complexity } from '../engine/types';
-import type { SizeKey } from '../runner/scenarios';
+import type { SizeKey, VisionKey } from '../runner/scenarios';
 import type { GameResult } from '../runner/types';
 
 export interface RunMeta {
@@ -29,6 +29,7 @@ export interface RankFilter {
   sizes?: SizeKey[];
   complexities?: Complexity[];
   ghosts?: number[];
+  visions?: VisionKey[];
 }
 
 export interface RankRow {
@@ -65,11 +66,20 @@ export interface Ranking {
   connectionExcluded: number;
 }
 
-const SCENARIO_RE = /^(small|medium|large|huge)-(simple|medium|complex)-(0|1|2|4)g$/;
+const SCENARIO_RE = /^(small|medium|large|huge)-(simple|medium|complex|labyrinth)-(0|1|2|4)g(-fog)?$/;
 
-export function parseScenarioId(id: string): { size: SizeKey; complexity: Complexity; ghosts: number } | null {
+export interface ParsedScenario {
+  size: SizeKey;
+  complexity: Complexity;
+  ghosts: number;
+  vision: VisionKey;
+}
+
+export function parseScenarioId(id: string): ParsedScenario | null {
   const m = SCENARIO_RE.exec(id);
-  return m ? { size: m[1] as SizeKey, complexity: m[2] as Complexity, ghosts: Number(m[3]) } : null;
+  return m
+    ? { size: m[1] as SizeKey, complexity: m[2] as Complexity, ghosts: Number(m[3]), vision: m[4] ? 'fog' : 'full' }
+    : null;
 }
 
 export function groupKey(m: RunMeta): string {
@@ -126,11 +136,12 @@ export function hasFiniteNumbers(r: GameResult): boolean {
   return [r.score, r.level, r.survivedTicks, r.livesLeft, r.avgLatencyMs, r.costUsd].every(Number.isFinite);
 }
 
-function matches(sc: { size: SizeKey; complexity: Complexity; ghosts: number }, f: RankFilter): boolean {
+export function scenarioMatches(sc: ParsedScenario, f: Omit<RankFilter, 'settingsKey'>): boolean {
   return (
     (!f.sizes?.length || f.sizes.includes(sc.size)) &&
     (!f.complexities?.length || f.complexities.includes(sc.complexity)) &&
-    (!f.ghosts?.length || f.ghosts.includes(sc.ghosts))
+    (!f.ghosts?.length || f.ghosts.includes(sc.ghosts)) &&
+    (!f.visions?.length || f.visions.includes(sc.vision))
   );
 }
 
@@ -192,7 +203,7 @@ export function buildRanking(runs: StoredRun[], filter: RankFilter): Ranking {
     for (const a of run.meta.agents) labels.set(a.id, a.label);
     for (const r of run.results) {
       const sc = parseScenarioId(r.scenarioId);
-      if (!sc || !matches(sc, filter)) continue;
+      if (!sc || !scenarioMatches(sc, filter)) continue;
       if (!hasFiniteNumbers(r)) continue;
       if (r.truncated === true) {
         truncatedExcluded++;

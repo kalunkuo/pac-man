@@ -7,9 +7,11 @@ export function encodeObservation(state: GameState, playerId: string): Observati
   if (!me) throw new Error(`unknown player ${playerId}`);
   const frightened = state.frightenedTicks > 0;
 
+  const r = state.config.vision;
   const rows = state.maze.walls.map((row, y) =>
     row
       .map((wall, x) => {
+        if (r !== null && Math.abs(x - me.pos.x) + Math.abs(y - me.pos.y) > r) return '?';
         if (wall) return '#';
         if (me.pos.x === x && me.pos.y === y) return 'P';
         if (state.ghosts.some((g) => g.pos.x === x && g.pos.y === y)) return frightened ? 'g' : 'G';
@@ -25,7 +27,9 @@ export function encodeObservation(state: GameState, playerId: string): Observati
   const moves = legalMoves(state.maze.walls, me.pos);
   const text =
     `Level ${state.level}, score ${me.score}, lives ${me.lives}, you are moving ${me.dir}.\n` +
+    (r === null ? '' : `Position: (${me.pos.x}, ${me.pos.y})\n`) +
     `Legal moves: ${moves.join(', ')}\n` +
+    (r === null ? '' : `Fog of war: cells more than ${r} steps away are shown as ?.\n`) +
     rows.join('\n');
 
   return { text, legalMoves: moves, score: me.score, lives: me.lives, level: state.level, tick: state.tick };

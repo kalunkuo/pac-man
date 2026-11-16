@@ -41,6 +41,17 @@ function many(scores: Record<string, number>, n = 5, scenario = S1): GameResult[
 }
 
 describe('buildRatings', () => {
+  it('filters by vision', () => {
+    const fog = 'small-simple-1g-fog';
+    const results = [...many({ a: 100, b: 10 }, 3), ...many({ a: 10, b: 100 }, 3, fog)];
+    const onlyFog = buildRatings([run('run-1', results)], { settingsKey: key, visions: ['fog'] });
+    expect(onlyFog.matches).toBe(3);
+    expect(onlyFog.rows[0].agentId).toBe('b');
+    const onlyFull = buildRatings([run('run-1', results)], { settingsKey: key, visions: ['full'] });
+    expect(onlyFull.rows[0].agentId).toBe('a');
+    expect(buildRatings([run('run-1', results)], { settingsKey: key }).matches).toBe(6);
+  });
+
   it('rates a model that always wins above its opponent with low <= rating <= high', () => {
     const r = buildRatings([run('run-1', many({ a: 100, b: 10 }))], { settingsKey: key });
     expect(r.rows.map((x) => x.agentId)).toEqual(['a', 'b']);

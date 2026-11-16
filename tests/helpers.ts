@@ -15,6 +15,7 @@ export function config(over: Partial<ScenarioConfig> = {}): ScenarioConfig {
     seed: 1,
     lives: 3,
     maxTicks: 500,
+    vision: null,
     ...over,
   };
 }
