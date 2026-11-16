@@ -20,7 +20,7 @@ Two terminals:
 
 The proxy starts even when `config/.env` does not exist. Without a key, paid calls return a clear `OPENROUTER_API_KEY is not set` error and nothing is sent to OpenRouter.
 
-Baselines (random, greedy, shortest-path planner) need no key and cost nothing. The server is only needed for LLM models and for saving results to `results/`.
+Baselines (random, greedy, shortest-path planner) need no key and cost nothing. Greedy heads for the nearest dot in a straight line (ignoring walls), avoids turning straight back unless it is in a dead end, and avoids cells it has already visited in the current level (each earlier visit adds 2 to a cell's cost). It forgets its visits at the start of every game and level, and still ignores ghosts. The server is only needed for LLM models and for saving results to `results/`.
 
 ## Add Jev and other models
 

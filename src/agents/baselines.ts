@@ -1,6 +1,6 @@
 import { DIRS, OPPOSITE, key, legalMoves, moved, isOpen } from '../engine/grid';
 import { makeRng, type Rng } from '../engine/rng';
-import type { Direction, Vec } from '../engine/types';
+import type { Direction, GameState, Vec } from '../engine/types';
 import type { Agent, DecideContext, Decision } from './types';
 
 const free = (dir: Direction | null, error?: string): Decision => ({ dir, latencyMs: 0, costUsd: 0, error });
@@ -57,14 +57,38 @@ export class RandomAgent implements Agent {
   }
 }
 
-/** Heads for the nearest pellet by straight-line distance and ignores ghosts. */
+type Memory = { level: number; visits: Map<string, number> };
+
+/** Heads for the nearest pellet by straight-line distance, remembering cells it has stood on. Ignores ghosts. */
 export class GreedyAgent implements Agent {
   readonly kind = 'baseline' as const;
+  // Keyed by game state so a reused agent starts fresh in every new game.
+  private readonly memory = new WeakMap<GameState, Map<string, Memory>>();
   constructor(readonly id: string, readonly label: string) {}
+
+  private visitsFor(state: GameState, playerId: string): Map<string, number> {
+    let byPlayer = this.memory.get(state);
+    if (!byPlayer) this.memory.set(state, (byPlayer = new Map()));
+    let entry = byPlayer.get(playerId);
+    if (!entry || entry.level !== state.level) byPlayer.set(playerId, (entry = { level: state.level, visits: new Map() }));
+    return entry.visits;
+  }
+
   async decide(ctx: DecideContext): Promise<Decision> {
     const { state } = ctx;
-    const pos = me(ctx).pos;
-    const moves = legalMoves(state.maze.walls, pos);
+    const player = me(ctx);
+    const pos = player.pos;
+    const visits = this.visitsFor(state, ctx.playerId);
+    const here = key(pos);
+    // Before its first move on a level the player's heading is only a default, so reversing is allowed then.
+    const hasMoved = [...visits.keys()].some((k) => k !== here);
+    visits.set(here, (visits.get(here) ?? 0) + 1);
+
+    const all = legalMoves(state.maze.walls, pos);
+    if (all.length === 0) return free(null);
+    const forward = hasMoved ? all.filter((d) => d !== OPPOSITE[player.dir]) : all;
+    const moves = forward.length > 0 ? forward : all;
+
     const radius = visionOf(ctx);
     const targets = [...state.pellets, ...state.powers]
       .map((k) => {
@@ -72,9 +96,11 @@ export class GreedyAgent implements Agent {
         return { x, y };
       })
       .filter((t) => radius === null || manhattan(pos, t) <= radius);
-    if (moves.length === 0) return free(null);
     if (targets.length === 0) return free(radius === null ? moves[0] : wander(ctx, moves));
-    const cost = (d: Direction) => Math.min(...targets.map((t) => manhattan(moved(pos, d), t)));
+    const cost = (d: Direction) => {
+      const next = moved(pos, d);
+      return Math.min(...targets.map((t) => manhattan(next, t))) + 2 * (visits.get(key(next)) ?? 0);
+    };
     let best = moves[0];
     for (const d of moves) if (cost(d) < cost(best)) best = d;
     return free(best);

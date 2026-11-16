@@ -125,6 +125,75 @@ describe('baselines', () => {
     expect((await new PlannerAgent('p', 'P').decide(ctxFor(state))).dir).toBe('RIGHT');
   });
 
+  describe('greedy memory', () => {
+    const step = (state: GameState, x: number, y: number, dir: 'UP' | 'DOWN' | 'LEFT' | 'RIGHT') => {
+      state.players[0].pos = { x, y };
+      state.players[0].dir = dir;
+    };
+
+    it('does not reverse when another legal move exists', async () => {
+      const state = corridor();
+      state.pellets = new Set([key({ x: 1, y: 1 })]);
+      const agent = new GreedyAgent('g', 'G');
+      await agent.decide(ctxFor(state)); // first decision at (3,1)
+      step(state, 4, 1, 'RIGHT'); // moved right; the pellet is behind
+      expect((await agent.decide(ctxFor(state))).dir).toBe('RIGHT');
+    });
+
+    it('reverses in a dead end', async () => {
+      const state = corridor();
+      state.maze.walls = parseWalls(['#####', '#...#', '#####']);
+      state.pellets = new Set([key({ x: 1, y: 1 })]);
+      const agent = new GreedyAgent('g', 'G');
+      step(state, 2, 1, 'LEFT');
+      await agent.decide(ctxFor(state));
+      step(state, 3, 1, 'RIGHT'); // dead end: only LEFT is legal
+      expect((await agent.decide(ctxFor(state))).dir).toBe('LEFT');
+    });
+
+    it('breaks a tie toward the cell it has visited less', async () => {
+      const state = createGame(config(), ['a']);
+      state.maze.walls = parseWalls(['#####', '#...#', '#.#.#', '#...#', '#####']);
+      state.pellets = new Set([key({ x: 2, y: 3 })]);
+      state.powers = new Set();
+      state.ghosts = [];
+      const agent = new GreedyAgent('g', 'G');
+      // From (1,1), DOWN (1,2) and RIGHT (2,1) are both 2 from the pellet; legal-move order picks DOWN.
+      step(state, 1, 1, 'RIGHT');
+      expect((await agent.decide(ctxFor(state))).dir).toBe('DOWN');
+      step(state, 1, 2, 'DOWN');
+      await agent.decide(ctxFor(state)); // stands on (1,2)
+      step(state, 1, 1, 'RIGHT');
+      expect((await agent.decide(ctxFor(state))).dir).toBe('RIGHT'); // (1,2) was visited, (2,1) was not
+    });
+
+    it('forgets visits on a new level and for a new game state', async () => {
+      const maze = parseWalls(['#####', '#...#', '#.#.#', '#...#', '#####']);
+      const make = (): GameState => {
+        const s = createGame(config(), ['a']);
+        s.maze.walls = maze;
+        s.pellets = new Set([key({ x: 2, y: 3 })]);
+        s.powers = new Set();
+        s.ghosts = [];
+        return s;
+      };
+      const agent = new GreedyAgent('g', 'G');
+      const state = make();
+      step(state, 1, 2, 'DOWN');
+      await agent.decide(ctxFor(state));
+      step(state, 1, 1, 'RIGHT');
+      expect((await agent.decide(ctxFor(state))).dir).toBe('RIGHT'); // memory active
+
+      state.level += 1;
+      step(state, 1, 1, 'RIGHT');
+      expect((await agent.decide(ctxFor(state))).dir).toBe('DOWN'); // new level: forgotten
+
+      const fresh = make();
+      step(fresh, 1, 1, 'RIGHT');
+      expect((await agent.decide(ctxFor(fresh))).dir).toBe('DOWN'); // new game, same agent
+    });
+  });
+
   it('planner refuses a path through ghost danger and flees instead', async () => {
     const state = corridor();
     state.pellets = new Set([key({ x: 1, y: 1 })]);
