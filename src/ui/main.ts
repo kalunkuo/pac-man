@@ -10,6 +10,7 @@ import type { GameSession } from '../runner/session';
 import type { GameResult, Mode, RunPlan } from '../runner/types';
 import { describePlayer, renderHeatmap, type Metric } from './panels';
 import { PLAYER_COLORS, drawBoard } from './render';
+import { validateSettings } from './settings';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const BASELINES = [
@@ -43,7 +44,7 @@ function checkbox(parent: HTMLElement, name: string, value: string, text: string
 
 for (const m of MODELS) {
   const usable = m.enabled && m.model !== '';
-  checkbox($('models'), 'agent', m.id, usable ? `${m.label} (${m.model})` : `${m.label} (set model id in src/models.config.ts)`, usable, !usable);
+  checkbox($('models'), 'agent', m.id, usable ? `${m.label} (${m.model}, paid)` : `${m.label} (set model id in src/models.config.ts)`, false, !usable);
 }
 for (const b of BASELINES) checkbox($('models'), 'agent', b.id, `${b.label} (free)`, true);
 
@@ -69,12 +70,24 @@ function readPlan(): { plan: RunPlan; llmCosts: { estUsdPerCall: number }[] } | 
     $('status').textContent = 'Pick at least one model and one scenario.';
     return null;
   }
-  const agents = agentIds.map(makeAgent);
-  const seeds = Array.from({ length: num('seeds') }, (_, i) => i + 1);
   const llmCosts = agentIds.flatMap((id) => {
     const m = MODELS.find((x) => x.id === id);
     return m ? [{ estUsdPerCall: m.estUsdPerCall }] : [];
   });
+  const invalid = validateSettings({
+    seeds: num('seeds'),
+    tickMs: num('tickMs'),
+    maxTicks: num('maxTicks'),
+    maxCalls: num('maxCalls'),
+    budget: num('budget'),
+    hasLlm: llmCosts.length > 0,
+  });
+  if (invalid) {
+    $('status').textContent = invalid;
+    return null;
+  }
+  const agents = agentIds.map(makeAgent);
+  const seeds = Array.from({ length: num('seeds') }, (_, i) => i + 1);
   return {
     llmCosts,
     plan: {
@@ -154,56 +167,80 @@ function refreshResults() {
 $<HTMLSelectElement>('metric').onchange = refreshResults;
 
 async function postJson(url: string, body: unknown) {
-  await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
+  if (!res.ok) throw new Error(`POST ${url} failed with status ${res.status}`);
 }
 
-$('btnRun').onclick = async () => {
-  if (controller) return;
-  const p = readPlan();
-  if (!p) return;
-  const e = estimate(p);
-  if (e.maxUsd > 0) {
-    const ok = confirm(`Worst case ${e.maxCalls} model calls, up to $${e.maxUsd.toFixed(2)}. Budget cap $${num('budget')}. Run?`);
-    if (!ok) return;
-    await postJson('/api/budget', { budgetUsd: num('budget'), maxCalls: e.maxCalls });
-  }
-  controller = new AbortController();
-  results = [];
-  shownAgents = p.plan.agents;
-  shownScenarios = p.plan.scenarios;
-  colors = Object.fromEntries(p.plan.agents.map((a, i) => [a.id, PLAYER_COLORS[i % PLAYER_COLORS.length]]));
-  $('status').textContent = 'Running...';
-  const poll = setInterval(async () => {
-    try {
-      const b = (await (await fetch('/api/budget')).json()) as { spentUsd: number };
-      $('spent').textContent = `$${b.spentUsd.toFixed(4)}`;
-    } catch {
-      /* server not running: fine for baseline-only runs */
-    }
-  }, 1000);
+let running = false;
 
-  const out = await runPlan(
-    p.plan,
-    {
-      onGroupStart: (g) => {
-        $('status').textContent = `Running ${g.scenario.name}, seed ${g.seed}`;
-        showGroup(g.sessions, p.plan.agents);
-      },
-      onResult: (r) => {
-        results.push(r);
-        refreshResults();
-      },
-    },
-    controller.signal,
-  );
-  clearInterval(poll);
-  const halted = boards.some((b) => b.session.halted);
-  $('status').textContent = halted ? 'Stopped: budget cap reached. Partial results kept.' : controller.signal.aborted ? 'Stopped.' : 'Done.';
-  controller = null;
+$('btnRun').onclick = async () => {
+  if (running || controller) return;
+  running = true;
+  $<HTMLButtonElement>('btnRun').disabled = true;
+  let poll: ReturnType<typeof setInterval> | undefined;
   try {
-    await postJson('/api/results', { runId: `run-${Date.now()}`, results: out });
-  } catch {
-    /* saving is optional */
+    const p = readPlan();
+    if (!p) return;
+    const e = estimate(p);
+    if (p.llmCosts.length > 0) {
+      const cost = e.maxUsd > 0 ? `up to $${e.maxUsd.toFixed(2)}` : 'cost estimate unavailable';
+      const ok = confirm(`A paid model is selected. Worst case ${e.maxCalls} model calls, ${cost}. Budget cap $${num('budget')}. Run?`);
+      if (!ok) return;
+      try {
+        await postJson('/api/budget', { budgetUsd: num('budget'), maxCalls: e.maxCalls });
+      } catch {
+        $('status').textContent = 'Could not set the budget on the proxy server (is npm run server running?). Run cancelled.';
+        return;
+      }
+    }
+    controller = new AbortController();
+    const signal = controller.signal;
+    results = [];
+    refreshResults();
+    shownAgents = p.plan.agents;
+    shownScenarios = p.plan.scenarios;
+    colors = Object.fromEntries(p.plan.agents.map((a, i) => [a.id, PLAYER_COLORS[i % PLAYER_COLORS.length]]));
+    $('status').textContent = 'Running...';
+    poll = setInterval(async () => {
+      try {
+        const b = (await (await fetch('/api/budget')).json()) as { spentUsd: number };
+        $('spent').textContent = `$${b.spentUsd.toFixed(4)}`;
+      } catch {
+        /* server not running: fine for baseline-only runs */
+      }
+    }, 1000);
+
+    let sawHalt = false;
+    let groupSessions: GameSession[] = [];
+    const out = await runPlan(
+      p.plan,
+      {
+        onGroupStart: (g) => {
+          groupSessions = g.sessions;
+          $('status').textContent = `Running ${g.scenario.name}, seed ${g.seed}`;
+          showGroup(g.sessions, p.plan.agents);
+        },
+        onResult: (r) => {
+          if (groupSessions.some((s) => s.halted)) sawHalt = true;
+          results.push(r);
+          refreshResults();
+        },
+      },
+      signal,
+    );
+    $('status').textContent = signal.aborted ? 'Stopped.' : sawHalt ? 'Stopped: budget cap reached. Partial results kept.' : 'Done.';
+    try {
+      await postJson('/api/results', { runId: `run-${Date.now()}`, results: out });
+    } catch {
+      /* saving is optional */
+    }
+  } catch (err) {
+    $('status').textContent = `Run failed: ${err instanceof Error ? err.message : String(err)}`;
+  } finally {
+    if (poll !== undefined) clearInterval(poll);
+    controller = null;
+    running = false;
+    $<HTMLButtonElement>('btnRun').disabled = false;
   }
 };
 

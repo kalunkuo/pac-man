@@ -40,7 +40,10 @@ Presets: `default` (2 scenarios, cheapest), `sizeSweep`, `complexitySweep`, `ful
 ## Controlling cost
 
 - Click Estimate before a run. It shows a worst-case upper bound.
-- Run asks for confirmation when the estimate is above $0, then sets the server budget. The server refuses calls once the money cap or the call cap is reached, and the run stops with partial results.
+- The default selection is the three free baselines only. Paid models are listed but unchecked; tick them on purpose.
+- Run always shows a confirm dialog when a paid model is selected (it says so if no cost estimate is available), then sets the server budget. If the proxy is not running or rejects the budget, the run is cancelled and nothing is sent to a model. Baseline-only runs never contact the server before running.
+- The server refuses calls once the money cap or the call cap is reached, and the run stops with partial results.
+- Settings are validated before Estimate or Run: seeds 1 to 20, tick ms 30 to 1000, max ticks 50 to 5000, max calls 10 to 5000 (all whole numbers), and a budget above 0 when a paid model is selected.
 - Lower "Max calls per model per game" or "Max ticks" to shrink a run. Fewer seeds means fewer games.
 - Start with the default preset and 1 seed.
 - Concurrent in-flight requests can overshoot the cap by a few calls.
