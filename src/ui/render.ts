@@ -28,14 +28,52 @@ export function eyeOffset(dir: Direction): { dx: number; dy: number } {
   }
 }
 
-function drawPacman(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, dir: Direction, tick: number, color: string): void {
-  const { start, end } = mouthAngles(dir, tick);
-  ctx.fillStyle = color;
+const MIN_AVATAR_RADIUS = 7;
+
+/** Avatar radius in px. The floor keeps avatars visible on dense boards, even if they overlap nearby walls. */
+export function avatarRadius(cell: number): number {
+  return Math.max(cell * 0.42, MIN_AVATAR_RADIUS);
+}
+
+/** Short on-board labels (playerId to "1", "2", ...) for shared boards; empty when one player is alone. */
+export function legendLabels(playerIds: string[]): Record<string, string> {
+  if (playerIds.length < 2) return {};
+  return Object.fromEntries(playerIds.map((id, i) => [id, String(i + 1)]));
+}
+
+function wedgePath(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, start: number, end: number): void {
   ctx.beginPath();
   ctx.moveTo(cx, cy);
   ctx.arc(cx, cy, r, start, end);
   ctx.closePath();
+}
+
+function drawPacman(ctx: CanvasRenderingContext2D, cx: number, cy: number, r: number, dir: Direction, tick: number, color: string): void {
+  const { start, end } = mouthAngles(dir, tick);
+  // White ring just outside the dark outline so the avatar stands out on blue walls.
+  wedgePath(ctx, cx, cy, r + 1.25, start, end);
+  ctx.strokeStyle = 'rgba(255,255,255,0.9)';
+  ctx.lineWidth = 1;
+  ctx.stroke();
+  wedgePath(ctx, cx, cy, r, start, end);
+  ctx.fillStyle = color;
   ctx.fill();
+  ctx.strokeStyle = '#000';
+  ctx.lineWidth = 1.5;
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+}
+
+function drawLabel(ctx: CanvasRenderingContext2D, text: string, cx: number, top: number, cell: number): void {
+  ctx.font = `bold ${Math.max(10, cell * 0.9)}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  ctx.lineWidth = 3;
+  ctx.lineJoin = 'round';
+  ctx.strokeStyle = 'rgba(0,0,0,0.85)';
+  ctx.strokeText(text, cx, top);
+  ctx.fillStyle = '#fff';
+  ctx.fillText(text, cx, top);
 }
 
 function drawGhost(
@@ -95,7 +133,13 @@ export function boardTargetPx(boardCount: number, containerWidth: number, prefer
   return Math.min(900, Math.max(240, px));
 }
 
-export function drawBoard(canvas: HTMLCanvasElement, state: GameState, colors: Record<string, string>, targetPx = 320): void {
+export function drawBoard(
+  canvas: HTMLCanvasElement,
+  state: GameState,
+  colors: Record<string, string>,
+  targetPx = 320,
+  labels?: Record<string, string>,
+): void {
   const { maze } = state;
   const cell = Math.max(4, Math.floor(targetPx / maze.width));
   const w = maze.width * cell;
@@ -127,10 +171,15 @@ export function drawBoard(canvas: HTMLCanvasElement, state: GameState, colors: R
   const flashWhite = frightened && state.frightenedTicks <= 10 && state.tick % 2 === 0;
   for (const g of state.ghosts) {
     const body = frightened ? (flashWhite ? '#ffffff' : '#4466ff') : GHOST_COLORS[g.behavior];
-    drawGhost(ctx, g.pos.x * cell + cell / 2, g.pos.y * cell + cell / 2, cell * 0.42, g.dir, body, frightened);
+    drawGhost(ctx, g.pos.x * cell + cell / 2, g.pos.y * cell + cell / 2, avatarRadius(cell), g.dir, body, frightened);
   }
+  const r = avatarRadius(cell);
   for (const p of state.players) {
-    if (p.alive)
-      drawPacman(ctx, p.pos.x * cell + cell / 2, p.pos.y * cell + cell / 2, cell * 0.42, p.dir, state.tick, colors[p.id] ?? '#ffd400');
+    if (!p.alive) continue;
+    const cx = p.pos.x * cell + cell / 2;
+    const cy = p.pos.y * cell + cell / 2;
+    drawPacman(ctx, cx, cy, r, p.dir, state.tick, colors[p.id] ?? '#ffd400');
+    const text = state.players.length >= 2 ? labels?.[p.id] : undefined;
+    if (text) drawLabel(ctx, text, cx, cy - r - 3, cell);
   }
 }

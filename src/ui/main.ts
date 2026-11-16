@@ -11,7 +11,7 @@ import type { GameSession } from '../runner/session';
 import type { GameResult, Mode, RunPlan } from '../runner/types';
 import type { RunMeta, StoredRun } from '../ranking/rank';
 import { describePlayer, renderHeatmap, type Metric } from './panels';
-import { PLAYER_COLORS, boardTargetPx, drawBoard } from './render';
+import { PLAYER_COLORS, boardTargetPx, drawBoard, legendLabels } from './render';
 import { mountRankingPanel } from './ranking-panel';
 import { validateSettings } from './settings';
 
@@ -126,7 +126,7 @@ $('btnEstimate').onclick = () => {
 };
 
 // --- live boards ---
-type Board = { session: GameSession; canvas: HTMLCanvasElement; info: HTMLElement; wrap: HTMLElement; labels: Record<string, string> };
+type Board = { session: GameSession; canvas: HTMLCanvasElement; info: HTMLElement; wrap: HTMLElement; labels: Record<string, string>; marks: Record<string, string> };
 let boards: Board[] = [];
 let colors: Record<string, string> = {};
 
@@ -138,24 +138,39 @@ function boardPx(count: number): number {
 function frame() {
   const px = boardPx(boards.length);
   for (const b of boards) {
-    drawBoard(b.canvas, b.session.state, colors, px);
-    b.info.textContent = b.session.state.players
-      .map((p) => describePlayer(b.labels[p.id], p, b.session.stats[p.id], b.session.state.level))
-      .join('\n');
+    drawBoard(b.canvas, b.session.state, colors, px, b.marks);
+    for (const [i, p] of b.session.state.players.entries()) {
+      const text = `${b.marks[p.id] ? `${b.marks[p.id]} ` : ''}${describePlayer(b.labels[p.id], p, b.session.stats[p.id], b.session.state.level)}`;
+      const line = b.info.children[i];
+      if (line?.lastElementChild) line.lastElementChild.textContent = text;
+    }
   }
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);
 
-function showGroup(sessions: GameSession[], agents: Agent[]) {
+function showGroup(sessions: GameSession[], agents: Agent[], mode: Mode) {
   const labels = Object.fromEntries(agents.map((a) => [a.id, a.label]));
   boards = sessions.map((session) => {
     const wrap = document.createElement('div');
     wrap.className = 'board';
     const canvas = document.createElement('canvas');
-    const info = document.createElement('pre');
+    const info = document.createElement('div');
+    info.className = 'legend';
+    const marks = mode === 'arena' ? legendLabels(session.state.players.map((p) => p.id)) : {};
+    for (const p of session.state.players) {
+      const line = document.createElement('div');
+      line.className = 'legend-line';
+      const swatch = document.createElement('span');
+      swatch.className = 'swatch';
+      swatch.style.background = colors[p.id] ?? PLAYER_COLORS[0];
+      const text = document.createElement('span');
+      text.className = 'legend-text';
+      line.append(swatch, text);
+      info.append(line);
+    }
     wrap.append(canvas, info);
-    return { session, canvas, info, labels, wrap };
+    return { session, canvas, info, labels, wrap, marks };
   });
   $('boards').replaceChildren(...boards.map((b) => b.wrap));
 }
@@ -167,7 +182,8 @@ function showPreview() {
   const wrap = document.createElement('div');
   wrap.className = 'board';
   const canvas = document.createElement('canvas');
-  const caption = document.createElement('pre');
+  const caption = document.createElement('div');
+  caption.className = 'legend-text';
   caption.textContent = 'Preview. Pick models and click Run to start a game.';
   wrap.append(canvas, caption);
   $('boards').replaceChildren(wrap);
@@ -307,7 +323,7 @@ $('btnRun').onclick = async () => {
         onGroupStart: (g) => {
           groupSessions = g.sessions;
           $('status').textContent = `Running ${g.scenario.name}, seed ${g.seed}`;
-          showGroup(g.sessions, p.plan.agents);
+          showGroup(g.sessions, p.plan.agents, p.plan.mode);
         },
         onResult: (r) => {
           if (groupSessions.some((s) => s.halted)) sawHalt = true;

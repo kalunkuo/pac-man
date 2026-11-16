@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { boardTargetPx, eyeOffset, mouthAngles } from '../src/ui/render';
+import { avatarRadius, boardTargetPx, eyeOffset, legendLabels, mouthAngles } from '../src/ui/render';
 import type { Direction } from '../src/engine/types';
 
 const DIRS: Direction[] = ['RIGHT', 'DOWN', 'LEFT', 'UP'];
@@ -89,5 +89,33 @@ describe('boardTargetPx', () => {
 
   it('Auto never exceeds 900', () => {
     for (const w of [320, 800, 1200, 2400, 5000]) expect(boardTargetPx(1, w, null)).toBeLessThanOrEqual(900);
+  });
+});
+
+describe('avatarRadius', () => {
+  it('is 42% of the cell on big cells', () => {
+    expect(avatarRadius(20)).toBeCloseTo(8.4);
+    expect(avatarRadius(100)).toBeCloseTo(42);
+  });
+
+  it('never drops below 7 px', () => {
+    expect(avatarRadius(4)).toBe(7);
+    expect(avatarRadius(16)).toBe(7);
+  });
+
+  it('stays finite for tiny cells', () => {
+    expect(Number.isFinite(avatarRadius(0))).toBe(true);
+    expect(Number.isFinite(avatarRadius(1))).toBe(true);
+  });
+});
+
+describe('legendLabels', () => {
+  it('numbers players from 1 in order', () => {
+    expect(legendLabels(['a', 'b', 'c'])).toEqual({ a: '1', b: '2', c: '3' });
+  });
+
+  it('is empty for a single player', () => {
+    expect(legendLabels(['a'])).toEqual({});
+    expect(legendLabels([])).toEqual({});
   });
 });
