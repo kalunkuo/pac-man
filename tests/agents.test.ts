@@ -264,6 +264,33 @@ describe('baselines', () => {
       }
     });
 
+    describe('planner paths', () => {
+      // Pellet (3,2) is 2 cells from the player, but the only route is a U-turn that leaves a radius-3 diamond.
+      const uTurn = (vision: number | null): GameState => {
+        const state = corridor();
+        state.config = { ...state.config, vision };
+        state.maze.walls = parseWalls(['#####', '#.#.#', '#.#.#', '#.#.#', '#...#', '#####']);
+        state.players[0].pos = { x: 1, y: 2 };
+        state.players[0].dir = 'UP';
+        state.pellets = new Set([key({ x: 3, y: 2 })]);
+        return state;
+      };
+
+      it('does not follow a route that leaves the visible cells', async () => {
+        expect((await new PlannerAgent('p', 'P').decide(ctxFor(uTurn(3)))).dir).toBe('UP');
+      });
+
+      it('follows a route that stays inside the visible cells', async () => {
+        const state = uTurn(3);
+        state.pellets = new Set([key({ x: 1, y: 4 })]);
+        expect((await new PlannerAgent('p', 'P').decide(ctxFor(state))).dir).toBe('DOWN');
+      });
+
+      it('follows the same long route with full vision', async () => {
+        expect((await new PlannerAgent('p', 'P').decide(ctxFor(uTurn(null)))).dir).toBe('DOWN');
+      });
+    });
+
     it('planner ignores a ghost outside the radius', async () => {
       const state = fogCorridor(3);
       state.pellets = new Set([key({ x: 5, y: 1 })]);

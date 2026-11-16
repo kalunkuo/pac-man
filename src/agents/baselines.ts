@@ -38,6 +38,11 @@ export function firstStepToNearest(
 /** Fog of war: the radius a baseline can see, or null with full vision. */
 const visionOf = (ctx: DecideContext): number | null => ctx.state.config.vision;
 
+/** A copy of the wall grid where every cell beyond Manhattan distance r of pos counts as a wall. */
+export function visibleWalls(walls: boolean[][], pos: Vec, r: number): boolean[][] {
+  return walls.map((row, y) => row.map((wall, x) => wall || manhattan(pos, { x, y }) > r));
+}
+
 /** Without a visible pellet, keep going; otherwise turn without reversing unless that is the only way. */
 function wander(ctx: DecideContext, moves: Direction[]): Direction {
   const dir = me(ctx).dir;
@@ -135,10 +140,12 @@ export class PlannerAgent implements Agent {
     const moves = legalMoves(walls, pos);
     if (moves.length === 0) return free(null);
     if (radius !== null && targets.size === 0) return free(wander(ctx, moves));
-    const planned = firstStepToNearest(walls, pos, targets, blocked);
+    // Under fog the planner may only route through cells it can see.
+    const known = radius === null ? walls : visibleWalls(walls, pos, radius);
+    const planned = firstStepToNearest(known, pos, targets, blocked);
     if (planned) return free(planned);
 
-    if (threats.length === 0) return free(moves[0]);
+    if (threats.length === 0) return free(radius === null ? moves[0] : wander(ctx, moves));
     const safety = (d: Direction) => Math.min(...threats.map((t) => manhattan(moved(pos, d), t)));
     let best = moves[0];
     for (const d of moves) if (safety(d) > safety(best)) best = d;
