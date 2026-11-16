@@ -48,11 +48,19 @@ Presets: `default` (2 scenarios, cheapest), `sizeSweep`, `complexitySweep`, `ful
 - Settings are validated before Estimate or Run: seeds 1 to 20, tick ms 30 to 1000, max ticks 50 to 5000 (all whole numbers), and a budget above 0 when a paid model is selected.
 - "Max ticks per game" is the main cost knob (default 400, about 1 minute per game at 150 ms ticks). A fast model can make about one call per tick, so the worst case is max ticks calls per model per game. Lower it or use fewer seeds to shrink a run. There is no separate per-game call cap in the UI, so fast models are not throttled before the game ends.
 - Start with the default preset and 1 seed.
+- If OpenRouter omits the cost in a reply, the proxy charges a fallback of 0.01 USD for that call so the cap still works. The response is flagged `costEstimated`. If OpenRouter reports out of credit (HTTP 402), the run stops with partial results.
+- Each model request times out after 30 seconds and counts as an error.
 - Concurrent in-flight requests can overshoot the cap by a few calls.
 
 ## Results
 
-The heatmap shows models by scenario for the chosen metric (mean score, level, survival, latency). The winner line lists the highest mean score per scenario. Runs are saved to `results/run-<timestamp>.json` (git-ignored).
+Before the first run the page shows a static preview board. Nothing plays on it, and the live boards replace it when a run starts.
+
+The heatmap shows models by scenario for the chosen metric (mean score, level, survival, latency). The winner line lists the highest mean score per scenario.
+
+Truncated games: a game stopped early (Stop button or budget cap) is marked truncated. It is left out of every mean and cannot win a scenario, but its cost still counts. A heatmap cell with stopped games shows `*` (hover for the count), and a note appears under the heatmap. A cell with no finished games shows `-`.
+
+Saved runs: when a run ends it is saved to `results/run-<timestamp>.json` (git-ignored) with the models, scenarios and settings used. In the "Saved runs" section, click Refresh list, pick a run, then click Show saved run to see its heatmap again. Reloading only reads the saved file. It never starts a run or calls a model, and it needs the proxy running. Older runs saved as a bare list still load, with model ids as labels. Files that cannot be parsed are skipped.
 
 ## Tests
 
