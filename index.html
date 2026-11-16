@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Pacman arena</title>
+    <style>
+      body { font: 14px system-ui, sans-serif; margin: 0; background: #111; color: #eee; }
+      main { display: grid; grid-template-columns: 340px 1fr; gap: 16px; padding: 16px; }
+      fieldset { border: 1px solid #333; margin: 0 0 12px; padding: 8px 10px; }
+      legend { color: #aaa; }
+      label { display: block; margin: 2px 0; }
+      input[type='number'] { width: 80px; }
+      button { padding: 6px 12px; margin-right: 6px; cursor: pointer; }
+      #boards { display: flex; flex-wrap: wrap; gap: 12px; }
+      .board { background: #000; padding: 6px; border: 1px solid #333; }
+      .board pre { margin: 4px 0 0; font-size: 12px; white-space: pre-wrap; max-width: 320px; }
+      .heatmap { border-collapse: collapse; margin-top: 8px; }
+      .heatmap td { border: 1px solid #333; padding: 4px 8px; text-align: right; }
+      .heatmap tr:first-child td { text-align: center; color: #aaa; }
+      .heatmap td:first-child { text-align: left; }
+      #scenarios { max-height: 180px; overflow: auto; }
+      #status { color: #9cf; min-height: 1.4em; }
+      .muted { color: #888; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section>
+        <h2>Pacman arena</h2>
+        <fieldset>
+          <legend>Mode</legend>
+          <select id="mode">
+            <option value="benchmark">Benchmark: own board, same seed</option>
+            <option value="arena">Arena: shared maze</option>
+          </select>
+        </fieldset>
+        <fieldset>
+          <legend>Models</legend>
+          <div id="models"></div>
+        </fieldset>
+        <fieldset>
+          <legend>Scenarios</legend>
+          <select id="preset"></select>
+          <details><summary>Custom selection</summary><div id="scenarios"></div></details>
+        </fieldset>
+        <fieldset>
+          <legend>Run settings</legend>
+          <label>Seeds per scenario <input id="seeds" type="number" min="1" max="20" value="1" /></label>
+          <label>Tick (ms) <input id="tickMs" type="number" min="30" max="1000" value="150" /></label>
+          <label>Max ticks per game <input id="maxTicks" type="number" min="50" max="5000" value="800" /></label>
+          <label>Max calls per model per game <input id="maxCalls" type="number" min="10" max="5000" value="400" /></label>
+          <label>Budget cap (USD) <input id="budget" type="number" min="0" step="0.1" value="0.5" /></label>
+        </fieldset>
+        <button id="btnEstimate">Estimate</button>
+        <button id="btnRun">Run</button>
+        <button id="btnStop">Stop</button>
+        <p id="status"></p>
+        <p class="muted">Spent: <span id="spent">$0.0000</span></p>
+      </section>
+      <section>
+        <div id="boards"></div>
+        <h3>Results</h3>
+        <label>Metric
+          <select id="metric">
+            <option value="meanScore">Mean score</option>
+            <option value="meanLevel">Mean level reached</option>
+            <option value="meanSurvivedTicks">Mean survival (ticks)</option>
+            <option value="meanLatencyMs">Mean latency</option>
+          </select>
+        </label>
+        <div id="heatmap"></div>
+        <p id="winners" class="muted"></p>
+      </section>
+    </main>
+    <script type="module" src="/src/ui/main.ts"></script>
+  </body>
+</html>
