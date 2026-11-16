@@ -56,6 +56,17 @@ Presets: `default` (2 scenarios, cheapest), `sizeSweep` (Small, Medium and Large
 - Each model request times out after 30 seconds and counts as an error.
 - Concurrent in-flight requests can overshoot the cap by a few calls.
 
+## Reading the board
+
+- Players are drawn as Pac-Man, with a mouth that opens and closes and faces the direction the player is moving.
+- Each model keeps one color for the whole run. The same color shows as a swatch in the legend under its board.
+- In arena mode, players are also numbered 1, 2, 3 and so on, both on the board and in the legend. Players that share a cell are drawn side by side, slightly smaller.
+- Ghosts are drawn as ghosts, and their eyes look the way they are moving.
+- After a Pac-Man eats a big white power pellet, ghosts turn blue for about 40 ticks and flash blue and white in the last 10. A blue ghost can be eaten for 200 points.
+- The Board size selector in Run settings sets how large boards are drawn. Auto fits the page width, and Small, Medium, Large and Extra large fix it.
+- The free baselines act on the current tick's state, because the game waits for their decision. Paid models act when their answer arrives, so they steer on a slightly older view of the board.
+- In arena mode, the order in which players are processed rotates every tick, so nobody gets contested dots by default.
+
 ## Results
 
 The Board size selector in Run settings sets how large the boards are drawn. Auto (the default) fits the boards to the page width, so a single board is large and several boards share a row. The other choices fix the board width from Small (320 px) to Extra large (960 px), and a change applies immediately, even during a run.
