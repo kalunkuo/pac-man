@@ -78,7 +78,6 @@ function readPlan(): { plan: RunPlan; llmCosts: { estUsdPerCall: number }[] } | 
     seeds: num('seeds'),
     tickMs: num('tickMs'),
     maxTicks: num('maxTicks'),
-    maxCalls: num('maxCalls'),
     budget: num('budget'),
     hasLlm: llmCosts.length > 0,
   });
@@ -96,7 +95,9 @@ function readPlan(): { plan: RunPlan; llmCosts: { estUsdPerCall: number }[] } | 
       seeds,
       agents,
       tickMs: num('tickMs'),
-      maxCallsPerGame: num('maxCalls'),
+      // At most one request starts per tick, so a cap equal to maxTicks never binds. It is only a safety net,
+      // and it keeps fast models from being throttled before the game ends.
+      maxCallsPerGame: num('maxTicks'),
       maxTicks: num('maxTicks'),
     },
   };
@@ -117,7 +118,7 @@ $('btnEstimate').onclick = () => {
   const p = readPlan();
   if (!p) return;
   const e = estimate(p);
-  $('status').textContent = `${e.games} games, up to ${e.maxCalls} model calls, worst case $${e.maxUsd.toFixed(2)} (budget cap $${num('budget')}).`;
+  $('status').textContent = `${e.games} games, worst case ${e.maxCalls} model calls, up to $${e.maxUsd.toFixed(2)} (a fast model can make about one call per tick). Budget cap $${num('budget')}.`;
 };
 
 // --- live boards ---
@@ -187,7 +188,7 @@ $('btnRun').onclick = async () => {
     const e = estimate(p);
     if (p.llmCosts.length > 0) {
       const cost = e.maxUsd > 0 ? `up to $${e.maxUsd.toFixed(2)}` : 'cost estimate unavailable';
-      const ok = confirm(`A paid model is selected. Worst case ${e.maxCalls} model calls, ${cost}. Budget cap $${num('budget')}. Run?`);
+      const ok = confirm(`A paid model is selected. Worst case ${e.maxCalls} model calls, ${cost} (a fast model can make about one call per tick). Budget cap $${num('budget')}. Run?`);
       if (!ok) return;
       try {
         await postJson('/api/budget', { budgetUsd: num('budget'), maxCalls: e.maxCalls });

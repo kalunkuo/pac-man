@@ -2,7 +2,6 @@ export type Settings = {
   seeds: number;
   tickMs: number;
   maxTicks: number;
-  maxCalls: number;
   budget: number;
   hasLlm: boolean;
 };
@@ -11,7 +10,6 @@ const RANGES = [
   { key: 'seeds', min: 1, max: 20 },
   { key: 'tickMs', min: 30, max: 1000 },
   { key: 'maxTicks', min: 50, max: 5000 },
-  { key: 'maxCalls', min: 10, max: 5000 },
 ] as const;
 
 export function validateSettings(s: Settings): string | null {
