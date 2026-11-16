@@ -32,16 +32,19 @@ export const ALL_SCENARIOS: Scenario[] = SIZE_KEYS.flatMap((s) =>
 export const PRESETS: Record<string, Scenario[]> = {
   // The cheap default: easiest and hardest corner.
   default: [makeScenario('small', 'simple', 1), makeScenario('large', 'complex', 2)],
-  sizeSweep: SIZE_KEYS.map((s) => makeScenario(s, 'medium', 2)),
+  sizeSweep: (['small', 'medium', 'large'] as SizeKey[]).map((s) => makeScenario(s, 'medium', 2)),
   complexitySweep: COMPLEXITIES.map((c) => makeScenario('medium', c, 2)),
   noGhosts: (['small', 'medium', 'large'] as SizeKey[]).map((s) => makeScenario(s, 'medium', 0)),
   huge: (['simple', 'complex'] as Complexity[]).map((c) => makeScenario('huge', c, 2)),
   full: ALL_SCENARIOS,
 };
 
-/** Prompt text grows with maze area; anything up to large (31x31) counts as 1. */
+/**
+ * Prompt text grows with maze area. Small, medium and large mazes grow to 41x41 (1681 cells)
+ * on later levels, so 1.7 is the worst case for them; huge stays 61x61.
+ */
 export function promptCostFactor(s: Scenario): number {
-  return Math.max(1, SIZES[s.size] ** 2 / 1000);
+  return Math.max(1.7, SIZES[s.size] ** 2 / 1000);
 }
 
 export function scenarioConfig(

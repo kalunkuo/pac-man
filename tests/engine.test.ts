@@ -7,7 +7,7 @@ import {
   setDirection,
   step,
 } from '../src/engine/engine';
-import { key, legalMoves, moved } from '../src/engine/grid';
+import { bfsDistances, key, legalMoves, moved } from '../src/engine/grid';
 import type { Direction } from '../src/engine/types';
 import { config } from './helpers';
 
@@ -30,6 +30,26 @@ describe('levelConfig', () => {
     expect(levelConfig(base, 20)).toMatchObject({ width: 41, height: 41, ghostCount: 6 });
   });
 
+  it('caps growth at 41 for bases 21 and 31', () => {
+    const expected: Record<number, number[]> = { 21: [21, 25, 29, 41], 31: [31, 35, 39, 41] };
+    for (const [base, widths] of Object.entries(expected)) {
+      [1, 2, 3, 20].forEach((level, i) => {
+        const cfg = levelConfig(config({ width: Number(base), height: Number(base) }), level);
+        expect(cfg.width).toBe(widths[i]);
+        expect(cfg.height).toBe(widths[i]);
+      });
+    }
+    expect(levelConfig(config({ width: 21, height: 21 }), 6).width).toBe(41);
+    expect(levelConfig(config({ width: 21, height: 21 }), 5).width).toBe(37);
+    expect(levelConfig(config({ width: 31, height: 31 }), 4).width).toBe(41);
+    expect(levelConfig(config({ width: 31, height: 31 }), 3).width).toBe(39);
+    for (const base of [21, 31]) {
+      for (let level = 1; level <= 30; level++) {
+        expect(levelConfig(config({ width: base, height: base }), level).width).toBeLessThanOrEqual(41);
+      }
+    }
+  });
+
   it('never shrinks a huge maze', () => {
     const base = config({ width: 61, height: 61 });
     for (const level of [1, 2, 10]) expect(levelConfig(base, level)).toMatchObject({ width: 61, height: 61 });
@@ -41,11 +61,32 @@ describe('levelConfig', () => {
     expect(levelConfig(config({ ghostCount: 1 }), 3).ghostCount).toBe(2);
   });
 
-  it('runs a 0-ghost game without ghost deaths', () => {
-    const state = createGame(config({ ghostCount: 0 }), ['a']);
-    for (let i = 0; i < 100; i++) step(state);
+  it('clears a level with 0 ghosts and keeps the next level ghost-free', () => {
+    const state = createGame(config({ ghostCount: 0, seed: 1 }), ['a']);
+    const p = state.players[0];
+    for (let i = 0; i < 800 && state.level === 1; i++) {
+      const dist = bfsDistances(state.maze.walls, p.pos);
+      let target = p.pos;
+      let bestD = Infinity;
+      for (const k of [...state.pellets, ...state.powers]) {
+        const [x, y] = k.split(',').map(Number);
+        if (dist[y][x] >= 0 && dist[y][x] < bestD) {
+          bestD = dist[y][x];
+          target = { x, y };
+        }
+      }
+      const toTarget = bfsDistances(state.maze.walls, target);
+      const next = legalMoves(state.maze.walls, p.pos).sort((d1, d2) => {
+        const a1 = moved(p.pos, d1);
+        const a2 = moved(p.pos, d2);
+        return toTarget[a1.y][a1.x] - toTarget[a2.y][a2.x];
+      })[0];
+      setDirection(state, p.id, next);
+      step(state);
+    }
+    expect(state.level).toBe(2);
     expect(state.ghosts).toHaveLength(0);
-    expect(state.players[0].lives).toBe(3);
+    expect(p.lives).toBe(3);
   });
 });
 

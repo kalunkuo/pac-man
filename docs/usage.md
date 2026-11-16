@@ -24,7 +24,7 @@ Baselines (random, greedy, shortest-path planner) need no key and cost nothing. 
 
 ## Add Jev and other models
 
-Edit `src/models.config.ts`. Set `model` to the OpenRouter model id, set `enabled: true`, and set `estUsdPerCall` to a rough worst-case price per call (check current OpenRouter prices). The estimate is only used for the pre-run warning. It scales with maze size: a huge call sends about 3.7 times the text of a large one, so the pre-run estimate multiplies huge scenarios by 3.7. The real cost comes from OpenRouter and counts against the budget cap.
+Edit `src/models.config.ts`. Set `model` to the OpenRouter model id, set `enabled: true`, and set `estUsdPerCall` to a rough worst-case price per call (check current OpenRouter prices). The estimate is only used for the pre-run warning. It scales with maze size: a Huge maze is about 3.9 times the area of a Large one. The estimate uses a factor of 1.7 for Small to Large (allowing for later levels growing to 41x41) and 3.7 for Huge, so the worst-case figure is an upper bound. The real cost comes from OpenRouter and counts against the budget cap.
 
 ## Modes
 
@@ -37,7 +37,7 @@ Both run in real time. A model keeps its last direction until its next answer ar
 
 Size: small 11x11, medium 21x21, large 31x31, huge 61x61. Complexity: simple (open, many loops), medium (classic corridors), complex (perfect maze, many dead ends, no loops). Ghosts: 0, 1, 2 or 4 (0 is a pure navigation control with nothing chasing the player) with mixed chase, ambush and random behavior. Each level grows the maze by 4 cells per side (cap 41) and adds a ghost every second level (cap 6). Growth never shrinks a huge maze, and a 0-ghost scenario stays at 0 ghosts.
 
-Presets: `default` (2 scenarios, cheapest), `sizeSweep`, `complexitySweep`, `noGhosts` (small, medium and large, medium layout, 0 ghosts), `huge` (huge, simple and complex layouts, 2 ghosts), `full` (48). Use "Custom selection" to pick any combination.
+Presets: `default` (2 scenarios, cheapest), `sizeSweep` (Small, Medium and Large only), `complexitySweep`, `noGhosts` (small, medium and large, medium layout, 0 ghosts), `huge` (huge, simple and complex layouts, 2 ghosts), `full` (48). Use "Custom selection" to pick any combination.
 
 ## Controlling cost
 

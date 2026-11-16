@@ -41,10 +41,14 @@ describe('scenarios', () => {
     expect(PRESETS.huge.map((s) => s.id)).toEqual(['huge-simple-2g', 'huge-complex-2g']);
   });
 
+  it('keeps sizeSweep to small, medium and large', () => {
+    expect(PRESETS.sizeSweep.map((s) => s.id)).toEqual(['small-medium-2g', 'medium-medium-2g', 'large-medium-2g']);
+  });
+
   it('scales the prompt cost factor with maze area', () => {
-    expect(promptCostFactor(makeScenario('small', 'simple', 1))).toBe(1);
-    expect(promptCostFactor(makeScenario('medium', 'simple', 1))).toBe(1);
-    expect(promptCostFactor(makeScenario('large', 'simple', 1))).toBe(1);
+    expect(promptCostFactor(makeScenario('small', 'simple', 1))).toBe(1.7);
+    expect(promptCostFactor(makeScenario('medium', 'simple', 1))).toBe(1.7);
+    expect(promptCostFactor(makeScenario('large', 'simple', 1))).toBe(1.7);
     expect(promptCostFactor(makeScenario('huge', 'simple', 1))).toBeCloseTo(3.721);
   });
 
@@ -110,9 +114,9 @@ describe('estimateRun', () => {
       agentCount: 2,
       llmAgents: [{ estUsdPerCall: 0.01 }],
       maxCallsPerGame: 100,
-      scenarioCostFactors: [1, 3.721],
+      scenarioCostFactors: [1.7, 3.721],
     });
-    expect(e.maxUsd).toBeCloseTo(2 * 100 * 0.01 * 4.721);
+    expect(e.maxUsd).toBeCloseTo(2 * 100 * 0.01 * 5.421);
     expect(e.games).toBe(8);
     expect(e.maxCalls).toBe(400);
   });
