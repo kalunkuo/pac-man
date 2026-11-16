@@ -9,14 +9,14 @@ A browser Pac-Man game where different decision models compete: Jev (a System 1 
 ## Architecture
 
 - `src/engine`: pure TypeScript, no I/O. Maze generation, pellets, ghost AI, collisions, scoring, lives. Fully seeded and deterministic. Advances one tick per step.
-- `src/agents`: one typed interface, `decide(observation) -> Direction`. Each agent is `{ label, openrouterModelId, promptStyle }`. Jev, other vendors' models and the regular LLM are instances of the OpenRouter adapter. Baselines (random, greedy, A*) and a mock agent implement the same interface.
-- `src/server`: thin Node proxy to OpenRouter. Holds the API key from `.env` (git-ignored). Records latency and token cost per call. Enforces the budget cap.
+- `src/agents`: one typed interface, `decide(observation) -> Direction`. Each LLM agent is `{ id, label, model }`. Jev, other vendors' models and the regular LLM are instances of the OpenRouter adapter. Baselines (random, greedy, shortest-path planner) and a scripted mock agent implement the same interface.
+- `src/server`: thin Node proxy to OpenRouter. Holds the API key from `config/.env` (git-ignored). Records cost per call (latency is measured client-side). Enforces the budget cap.
 - `src/ui`: canvas boards, live scoreboard, scenario picker, results heatmap.
 
 ### Observation and reply
 
 - Observation: compact ASCII grid (Pac-Man, ghosts, pellets, legal moves), score, lives, level.
-- Reply: one of `UP`, `DOWN`, `LEFT`, `RIGHT`, validated against a schema.
+- Reply: parsed for the first whole-word match of `UP`, `DOWN`, `LEFT` or `RIGHT`. Anything else is an error.
 - Invalid reply, timeout or API error: repeat the previous move and count an error. Too many consecutive errors disqualify the model for that game.
 
 ## Modes
@@ -35,7 +35,7 @@ Scenario knobs:
 | Knob | Values |
 |---|---|
 | Size | small (11x11), medium (21x21), large (31x31+) |
-| Obstacle complexity | simple (open, many loops), medium (classic corridors), complex (dense, dead ends, few loops, one-way tunnels) |
+| Obstacle complexity | simple (open, many loops), medium (classic corridors), complex (perfect maze: many dead ends, no loops) |
 | Ghost pressure | 1, 2 or 4 ghosts; chase, ambush or random behavior |
 
 - Named presets plus a custom mode.
@@ -70,7 +70,7 @@ pacman-arena/
   src/engine  src/agents  src/server  src/ui
   tests/
   docs/
-  .env.example   (real .env is git-ignored)
+  config/.env.example   (real config/.env is git-ignored)
 ```
 
 ## Out of scope
