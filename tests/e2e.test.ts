@@ -48,4 +48,19 @@ describe('runPlan (offline, baselines only)', () => {
     expect(out.length).toBeGreaterThan(0);
     expect(out.length).toBeLessThan(12);
   });
+
+  it('marks the game cut short by an abort as truncated and finished games as not', async () => {
+    const ctl = new AbortController();
+    const p = plan('benchmark');
+    p.maxTicks = 100000; // far longer than the abort, so the first group never ends by itself
+    p.agents = [new RandomAgent('random', 'Random', 1)];
+    p.scenarios = [makeScenario('small', 'simple', 1)];
+    p.seeds = [1];
+    const out = await runPlan(p, { onGroupStart: () => void setTimeout(() => ctl.abort(), 20) }, ctl.signal);
+    expect(out).toHaveLength(1);
+    expect(out[0].truncated).toBe(true);
+
+    const full = await runPlan(plan('benchmark'));
+    expect(full.every((r) => r.truncated === false)).toBe(true);
+  });
 });

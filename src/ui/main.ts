@@ -157,6 +157,9 @@ let shownScenarios = ALL_SCENARIOS.slice(0, 0);
 
 function refreshResults() {
   const cells = aggregate(results);
+  $('heatmapNote').textContent = cells.some((c) => c.truncatedGames > 0)
+    ? '* some games were stopped early and are not counted.'
+    : '';
   renderHeatmap($('heatmap'), cells, shownAgents, shownScenarios, $<HTMLSelectElement>('metric').value as Metric);
   const win = winners(cells);
   $('winners').textContent = shownScenarios

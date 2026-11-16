@@ -38,7 +38,7 @@ export function renderHeatmap(
   for (const s of scenarios) head.insertCell().textContent = s.name;
 
   const columns = scenarios.map((s) => {
-    const values = agents.map((a) => find(a.id, s.id)?.[metric]).filter((v): v is number => v !== undefined);
+    const values = agents.map((a) => find(a.id, s.id)?.[metric]).filter((v): v is number => v !== undefined && !Number.isNaN(v));
     return { min: Math.min(...values), max: Math.max(...values) };
   });
 
@@ -53,7 +53,13 @@ export function renderHeatmap(
         return;
       }
       const v = c[metric];
-      td.textContent = metric === 'meanLatencyMs' ? `${Math.round(v)} ms` : v.toFixed(metric === 'meanLevel' ? 1 : 0);
+      const star = c.truncatedGames > 0;
+      if (star) td.title = `${c.truncatedGames} game(s) stopped early and left out`;
+      if (Number.isNaN(v)) {
+        td.textContent = star ? '- *' : '-';
+        return;
+      }
+      td.textContent = (metric === 'meanLatencyMs' ? `${Math.round(v)} ms` : v.toFixed(metric === 'meanLevel' ? 1 : 0)) + (star ? ' *' : '');
       const t = shade(v, columns[i].min, columns[i].max, higherIsBetter);
       td.style.background = `rgba(60, 200, 120, ${0.1 + 0.6 * t})`;
       if (t === 1 && columns[i].max !== columns[i].min) td.style.fontWeight = '700';

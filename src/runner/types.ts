@@ -29,4 +29,6 @@ export interface GameResult {
   avgLatencyMs: number;
   costUsd: number;
   disqualified: boolean;
+  /** True when the game was stopped (abort or budget) before it ended on its own. */
+  truncated: boolean;
 }

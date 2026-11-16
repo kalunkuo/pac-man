@@ -25,6 +25,7 @@ function toResult(mode: Mode, scenario: Scenario, seed: number, session: GameSes
     avgLatencyMs: stats.totalLatencyMs / Math.max(1, stats.calls),
     costUsd: stats.costUsd,
     disqualified: stats.disqualified,
+    truncated: session.halted || session.state.status !== 'over',
   };
 }
 

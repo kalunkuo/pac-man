@@ -18,6 +18,7 @@ const result = (over: Partial<GameResult>): GameResult => ({
   avgLatencyMs: 100,
   costUsd: 0.01,
   disqualified: false,
+  truncated: false,
   ...over,
 });
 
@@ -103,5 +104,34 @@ describe('aggregate and winners', () => {
 
   it('picks the highest mean score as the winner of each scenario', () => {
     expect(winners(aggregate(results))).toEqual({ s1: 'a', s2: 'b' });
+  });
+
+  describe('truncated games', () => {
+    const mixed = [
+      result({ agentId: 'a', seed: 1, score: 100, level: 1, costUsd: 0.01 }),
+      result({ agentId: 'a', seed: 2, score: 900, level: 9, costUsd: 0.05, truncated: true }),
+    ];
+
+    it('leaves truncated games out of the means but keeps the total count', () => {
+      const [c] = aggregate(mixed);
+      expect(c).toMatchObject({ games: 2, completeGames: 1, truncatedGames: 1, meanScore: 100, stdScore: 0, meanLevel: 1 });
+    });
+
+    it('still counts the cost of truncated games', () => {
+      expect(aggregate(mixed)[0].totalCostUsd).toBeCloseTo(0.06);
+    });
+
+    it('gives NaN means for a cell with no complete games, and it cannot win', () => {
+      const cells = aggregate([
+        result({ agentId: 'a', score: 900, truncated: true }),
+        result({ agentId: 'b', score: 5 }),
+      ]);
+      const a = cells.find((c) => c.agentId === 'a')!;
+      expect(a).toMatchObject({ games: 1, completeGames: 0, truncatedGames: 1 });
+      expect(a.meanScore).toBeNaN();
+      expect(a.stdScore).toBeNaN();
+      expect(a.meanLatencyMs).toBeNaN();
+      expect(winners(cells)).toEqual({ s1: 'b' });
+    });
   });
 });
