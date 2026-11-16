@@ -28,3 +28,11 @@ export class Budget {
     return { budgetUsd: this.budgetUsd, maxCalls: this.maxCalls, spentUsd: this.spentUsd, calls: this.calls };
   }
 }
+
+export function parseBudgetBody(body: unknown): { budgetUsd: number; maxCalls: number } | null {
+  if (typeof body !== 'object' || body === null) return null;
+  const { budgetUsd, maxCalls } = body as { budgetUsd?: unknown; maxCalls?: unknown };
+  if (typeof budgetUsd !== 'number' || !Number.isFinite(budgetUsd) || budgetUsd < 0) return null;
+  if (typeof maxCalls !== 'number' || !Number.isInteger(maxCalls) || maxCalls < 0) return null;
+  return { budgetUsd, maxCalls };
+}

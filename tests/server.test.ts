@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
-import { Budget } from '../src/server/budget';
+import { Budget, parseBudgetBody } from '../src/server/budget';
 import { buildPayload, handleDecide } from '../src/server/decide';
 import { listResults, saveResults } from '../src/server/results-store';
 
@@ -31,6 +31,30 @@ describe('Budget', () => {
     b.record(0);
     expect(b.exhausted()).toBe(true);
     expect(b.snapshot()).toEqual({ budgetUsd: 10, maxCalls: 2, spentUsd: 0, calls: 2 });
+  });
+});
+
+describe('parseBudgetBody', () => {
+  it('accepts finite non-negative spend and integer call caps', () => {
+    expect(parseBudgetBody({ budgetUsd: 1.5, maxCalls: 10 })).toEqual({ budgetUsd: 1.5, maxCalls: 10 });
+    expect(parseBudgetBody({ budgetUsd: 0, maxCalls: 0 })).toEqual({ budgetUsd: 0, maxCalls: 0 });
+  });
+
+  it('rejects everything else', () => {
+    const bad: unknown[] = [
+      { budgetUsd: NaN, maxCalls: 10 },
+      { budgetUsd: Infinity, maxCalls: 10 },
+      { budgetUsd: -1, maxCalls: 10 },
+      { budgetUsd: 1, maxCalls: 1.5 },
+      { budgetUsd: 1, maxCalls: -1 },
+      { budgetUsd: 1 },
+      { maxCalls: 10 },
+      { budgetUsd: '1', maxCalls: 10 },
+      null,
+      'x',
+      42,
+    ];
+    for (const b of bad) expect(parseBudgetBody(b)).toBeNull();
   });
 });
 
@@ -84,6 +108,14 @@ describe('handleDecide', () => {
       throw new Error('x');
     }) as unknown as typeof fetch;
     expect((await handleDecide(body, { apiKey: 'k', budget: new Budget(), fetchImpl: down })).status).toBe(502);
+  });
+
+  it('maps a non-JSON upstream body to 502 and does not record the call', async () => {
+    const fetchImpl = vi.fn(async () => new Response('<html>oops</html>', { status: 200 })) as unknown as typeof fetch;
+    const budget = new Budget(1, 100);
+    const r = await handleDecide(body, { apiKey: 'sk-test', budget, fetchImpl });
+    expect(r).toEqual({ status: 502, json: { error: 'upstream bad response' } });
+    expect(budget.calls).toBe(0);
   });
 
   it('treats a missing usage cost as zero and a missing reply as empty text', async () => {

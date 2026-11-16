@@ -60,10 +60,15 @@ export async function handleDecide(body: unknown, deps: DecideDeps): Promise<Han
   }
   if (!upstream.ok) return { status: 502, json: { error: `upstream ${upstream.status}` } };
 
-  const data = (await upstream.json()) as {
+  let data: {
     choices?: { message?: { content?: string } }[];
     usage?: { cost?: number };
   };
+  try {
+    data = await upstream.json();
+  } catch {
+    return { status: 502, json: { error: 'upstream bad response' } };
+  }
   const costUsd = data.usage?.cost ?? 0;
   deps.budget.record(costUsd);
   return { status: 200, json: { text: data.choices?.[0]?.message?.content ?? '', costUsd } };
