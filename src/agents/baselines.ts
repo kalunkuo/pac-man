@@ -1,0 +1,110 @@
+import { DIRS, key, legalMoves, moved, isOpen } from '../engine/grid';
+import { makeRng, type Rng } from '../engine/rng';
+import type { Direction, Vec } from '../engine/types';
+import type { Agent, DecideContext, Decision } from './types';
+
+const free = (dir: Direction | null, error?: string): Decision => ({ dir, latencyMs: 0, costUsd: 0, error });
+const manhattan = (a: Vec, b: Vec): number => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+function me(ctx: DecideContext) {
+  const p = ctx.state.players.find((x) => x.id === ctx.playerId);
+  if (!p) throw new Error(`unknown player ${ctx.playerId}`);
+  return p;
+}
+
+/** Breadth-first search for the nearest target. Returns the first step of the shortest path. */
+export function firstStepToNearest(
+  walls: boolean[][],
+  start: Vec,
+  targets: Set<string>,
+  blocked: Set<string>,
+): Direction | null {
+  const seen = new Set([key(start)]);
+  const queue: { pos: Vec; first: Direction | null }[] = [{ pos: start, first: null }];
+  for (let i = 0; i < queue.length; i++) {
+    const { pos, first } = queue[i];
+    if (first !== null && targets.has(key(pos))) return first;
+    for (const d of DIRS) {
+      const n = moved(pos, d);
+      const k = key(n);
+      if (!isOpen(walls, n) || seen.has(k) || blocked.has(k)) continue;
+      seen.add(k);
+      queue.push({ pos: n, first: first ?? d });
+    }
+  }
+  return null;
+}
+
+export class RandomAgent implements Agent {
+  readonly kind = 'baseline' as const;
+  private readonly rng: Rng;
+  constructor(readonly id: string, readonly label: string, seed: number) {
+    this.rng = makeRng(seed);
+  }
+  async decide(ctx: DecideContext): Promise<Decision> {
+    const moves = legalMoves(ctx.state.maze.walls, me(ctx).pos);
+    return free(moves.length ? moves[Math.floor(this.rng() * moves.length)] : null);
+  }
+}
+
+/** Heads for the nearest pellet by straight-line distance and ignores ghosts. */
+export class GreedyAgent implements Agent {
+  readonly kind = 'baseline' as const;
+  constructor(readonly id: string, readonly label: string) {}
+  async decide(ctx: DecideContext): Promise<Decision> {
+    const { state } = ctx;
+    const pos = me(ctx).pos;
+    const moves = legalMoves(state.maze.walls, pos);
+    const targets = [...state.pellets, ...state.powers].map((k) => {
+      const [x, y] = k.split(',').map(Number);
+      return { x, y };
+    });
+    if (moves.length === 0) return free(null);
+    if (targets.length === 0) return free(moves[0]);
+    const cost = (d: Direction) => Math.min(...targets.map((t) => manhattan(moved(pos, d), t)));
+    let best = moves[0];
+    for (const d of moves) if (cost(d) < cost(best)) best = d;
+    return free(best);
+  }
+}
+
+/** Shortest path to the nearest pellet, avoiding cells within 2 of a live ghost. Flees when boxed in. */
+export class PlannerAgent implements Agent {
+  readonly kind = 'baseline' as const;
+  constructor(readonly id: string, readonly label: string) {}
+  async decide(ctx: DecideContext): Promise<Decision> {
+    const { state } = ctx;
+    const pos = me(ctx).pos;
+    const walls = state.maze.walls;
+    const threats = state.frightenedTicks > 0 ? [] : state.ghosts.map((g) => g.pos);
+
+    const blocked = new Set<string>();
+    for (const t of threats)
+      for (let dy = -2; dy <= 2; dy++)
+        for (let dx = -2; dx <= 2; dx++)
+          if (Math.abs(dx) + Math.abs(dy) <= 2) blocked.add(key({ x: t.x + dx, y: t.y + dy }));
+    blocked.delete(key(pos));
+
+    const targets = new Set([...state.pellets, ...state.powers]);
+    const planned = firstStepToNearest(walls, pos, targets, blocked);
+    if (planned) return free(planned);
+
+    const moves = legalMoves(walls, pos);
+    if (moves.length === 0) return free(null);
+    if (threats.length === 0) return free(moves[0]);
+    const safety = (d: Direction) => Math.min(...threats.map((t) => manhattan(moved(pos, d), t)));
+    let best = moves[0];
+    for (const d of moves) if (safety(d) > safety(best)) best = d;
+    return free(best);
+  }
+}
+
+/** Plays a fixed direction cycle. For tests and offline end-to-end runs. */
+export class ScriptedAgent implements Agent {
+  readonly kind = 'baseline' as const;
+  private i = 0;
+  constructor(readonly id: string, readonly label: string, private readonly dirs: Direction[]) {}
+  async decide(ctx: DecideContext): Promise<Decision> {
+    return free(this.dirs[this.i++ % this.dirs.length]);
+  }
+}
