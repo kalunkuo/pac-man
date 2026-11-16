@@ -121,6 +121,28 @@ describe('step', () => {
     expect(state.pellets.has(key(next))).toBe(false);
   });
 
+  it('alternates which player wins a contested pellet', () => {
+    const state = createGame(config({ ghostCount: 0 }), ['a', 'b']);
+    const [a, b] = state.players;
+    const start = { ...state.maze.pacStart };
+    const dir = legalMoves(state.maze.walls, start)[0];
+    const next = moved(start, dir);
+    const winners: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      state.pellets.add(key(next));
+      for (const p of state.players) {
+        p.pos = { ...start };
+        p.dir = dir;
+        p.wantDir = dir;
+      }
+      const before = [a.score, b.score];
+      step(state);
+      winners.push(a.score > before[0] ? 'a' : 'b');
+      expect(a.score - before[0] + (b.score - before[1])).toBe(SCORE.pellet);
+    }
+    expect(winners).toEqual(['b', 'a']);
+  });
+
   it('eating a power pellet scores 50 and frightens ghosts', () => {
     const { state, p, dir, next } = setup();
     state.powers.add(key(next));

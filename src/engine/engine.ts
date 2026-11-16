@@ -102,7 +102,9 @@ export function step(state: GameState): void {
   const walls = state.maze.walls;
   const prevPlayers = state.players.map((p) => ({ ...p.pos }));
 
-  for (const p of state.players) {
+  const order = processingOrder(state);
+  for (const pi of order) {
+    const p = state.players[pi];
     if (!p.alive) continue;
     const want = moved(p.pos, p.wantDir);
     if (isOpen(walls, want)) {
@@ -117,7 +119,7 @@ export function step(state: GameState): void {
 
   const prevGhosts = state.ghosts.map((g) => ({ ...g.pos }));
   moveGhosts(state);
-  resolveCollisions(state, prevPlayers, prevGhosts);
+  resolveCollisions(state, prevPlayers, prevGhosts, order);
   if (state.frightenedTicks > 0) state.frightenedTicks--;
 
   if (state.pellets.size === 0 && state.powers.size === 0) {
@@ -125,6 +127,12 @@ export function step(state: GameState): void {
     loadLevel(state, state.level + 1);
   }
   checkOver(state);
+}
+
+/** Rotates who goes first each tick, so a contested pellet does not always go to the same player. */
+function processingOrder(state: GameState): number[] {
+  const n = state.players.length;
+  return Array.from({ length: n }, (_, i) => (state.tick + i) % n);
 }
 
 function eat(state: GameState, p: Player): void {
@@ -221,9 +229,10 @@ function moveGhosts(state: GameState): void {
   });
 }
 
-function resolveCollisions(state: GameState, prevPlayers: Vec[], prevGhosts: Vec[]): void {
-  state.players.forEach((p, pi) => {
-    if (!p.alive) return;
+function resolveCollisions(state: GameState, prevPlayers: Vec[], prevGhosts: Vec[], order: number[]): void {
+  for (const pi of order) {
+    const p = state.players[pi];
+    if (!p.alive) continue;
     for (let gi = 0; gi < state.ghosts.length; gi++) {
       const g = state.ghosts[gi];
       const swapped = same(p.pos, prevGhosts[gi]) && same(g.pos, prevPlayers[pi]);
@@ -244,7 +253,7 @@ function resolveCollisions(state: GameState, prevPlayers: Vec[], prevGhosts: Vec
         p.wantDir = 'LEFT';
         p.invulnerableUntil = state.tick + INVULNERABLE_TICKS;
       }
-      return;
+      break;
     }
-  });
+  }
 }

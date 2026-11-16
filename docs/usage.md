@@ -29,7 +29,7 @@ Edit `src/models.config.ts`. Set `model` to the OpenRouter model id, set `enable
 ## Modes
 
 - Benchmark: each model gets its own board on an identical seeded maze. Scores are directly comparable.
-- Arena: all models race through one shared maze.
+- Arena: all models race through one shared maze. Players can share a cell. When several step onto the same pellet in one tick, the player who goes first rotates each tick, so no model wins contested pellets by list position.
 
 Both run in real time. A model keeps its last direction until its next answer arrives, so slow models lose ground. The free baselines have no latency: the game waits for their decision each tick, so they always act on the current position.
 
