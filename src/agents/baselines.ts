@@ -139,10 +139,9 @@ export class PlannerAgent implements Agent {
     );
     const moves = legalMoves(walls, pos);
     if (moves.length === 0) return free(null);
-    if (radius !== null && targets.size === 0) return free(wander(ctx, moves));
     // Under fog the planner may only route through cells it can see.
     const known = radius === null ? walls : visibleWalls(walls, pos, radius);
-    const planned = firstStepToNearest(known, pos, targets, blocked);
+    const planned = targets.size > 0 ? firstStepToNearest(known, pos, targets, blocked) : null;
     if (planned) return free(planned);
 
     if (threats.length === 0) return free(radius === null ? moves[0] : wander(ctx, moves));

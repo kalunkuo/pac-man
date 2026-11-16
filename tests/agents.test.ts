@@ -291,6 +291,24 @@ describe('baselines', () => {
       });
     });
 
+    it('planner flees a visible ghost when no pellet is visible', async () => {
+      const state = fogCorridor(4);
+      state.pellets = new Set([key({ x: 11, y: 1 })]);
+      state.players[0].pos = { x: 5, y: 1 };
+      state.players[0].dir = 'RIGHT';
+      state.ghosts = [{ pos: { x: 7, y: 1 }, dir: 'LEFT', behavior: 'chase' }];
+      expect((await new PlannerAgent('p', 'P').decide(ctxFor(state))).dir).toBe('LEFT');
+    });
+
+    it('planner keeps moving when no pellet or ghost is visible', async () => {
+      const state = fogCorridor(4);
+      state.pellets = new Set([key({ x: 11, y: 1 })]);
+      state.players[0].pos = { x: 3, y: 1 };
+      state.players[0].dir = 'RIGHT';
+      state.ghosts = [{ pos: { x: 11, y: 1 }, dir: 'LEFT', behavior: 'chase' }];
+      expect((await new PlannerAgent('p', 'P').decide(ctxFor(state))).dir).toBe('RIGHT');
+    });
+
     it('planner ignores a ghost outside the radius', async () => {
       const state = fogCorridor(3);
       state.pellets = new Set([key({ x: 5, y: 1 })]);
