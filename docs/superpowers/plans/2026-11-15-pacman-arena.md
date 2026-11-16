@@ -10,7 +10,7 @@
 
 ## Global constraints
 
-- Work only inside `/Users/kuok/Documents/GitHub/pac-man` (already a git repo with the spec committed).
+- Work only inside `.` (already a git repo with the spec committed).
 - Node 22 and npm. No runtime dependencies. Dev dependencies only: `typescript vite vitest tsx @types/node`.
 - The OpenRouter key lives only in `config/.env` (git-ignored). Never commit it, never send it to the browser, never log it.
 - Never save markdown to the repo root. Docs go in `docs/`. Config goes in `config/`. (Tooling files `package.json`, `tsconfig.json`, `vite.config.ts` and `index.html` must stay at the root.)
@@ -105,7 +105,7 @@ export default defineConfig({
 
 - [ ] **Step 2: Install dev dependencies**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npm install -D typescript vite vitest tsx @types/node`
+Run: `cd <repo root> && npm install -D typescript vite vitest tsx @types/node`
 Expected: installs without errors, creates `node_modules/` and `package-lock.json`.
 
 - [ ] **Step 3: Write `src/engine/types.ts`**
@@ -349,13 +349,13 @@ describe('grid', () => {
 
 - [ ] **Step 8: Run tests and typecheck**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npm test && npm run typecheck`
+Run: `cd <repo root> && npm test && npm run typecheck`
 Expected: all tests in `tests/grid.test.ts` PASS, typecheck exits 0.
 
 - [ ] **Step 9: Commit**
 
 ```bash
-cd /Users/kuok/Documents/GitHub/pac-man
+cd <repo root>
 git add package.json package-lock.json tsconfig.json vite.config.ts src tests
 git commit -m "feat: scaffold project with engine types, rng and grid helpers
 
@@ -460,7 +460,7 @@ describe('generateMaze', () => {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npx vitest run tests/maze.test.ts`
+Run: `cd <repo root> && npx vitest run tests/maze.test.ts`
 Expected: FAIL (cannot resolve `../src/engine/maze`).
 
 - [ ] **Step 3: Write `src/engine/maze.ts`**
@@ -621,13 +621,13 @@ function computeMetrics(walls: boolean[][]): MazeMetrics {
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npx vitest run tests/maze.test.ts`
+Run: `cd <repo root> && npx vitest run tests/maze.test.ts`
 Expected: all tests PASS. If the complexity-ordering test fails because two sums tie or invert, do not weaken the test: adjust `BRAID` and `EXTRA_OPEN` values (keep simple > medium > complex in loops) and rerun.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/kuok/Documents/GitHub/pac-man
+cd <repo root>
 git add src/engine/maze.ts tests/maze.test.ts
 git commit -m "feat: seeded maze generation with three complexity levels
 
@@ -854,7 +854,7 @@ describe('step', () => {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npx vitest run tests/engine.test.ts`
+Run: `cd <repo root> && npx vitest run tests/engine.test.ts`
 Expected: FAIL (cannot resolve `../src/engine/engine`).
 
 - [ ] **Step 3: Write `src/engine/engine.ts`**
@@ -1113,7 +1113,7 @@ function resolveCollisions(state: GameState, prevPlayers: Vec[], prevGhosts: Vec
 
 - [ ] **Step 4: Run tests to verify they pass**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npx vitest run tests/engine.test.ts && npm run typecheck`
+Run: `cd <repo root> && npx vitest run tests/engine.test.ts && npm run typecheck`
 Expected: all PASS, typecheck exits 0.
 
 If the "swap collision" test fails because the chase ghost does not step into the player's cell (it picks a different direction), fix the test setup, not the engine: choose the ghost direction so that its only forward choice is toward the player's start cell, for example by placing the ghost in a dead-end corridor next to `pacStart`. The engine rule under test is: positions swapped during one tick count as a hit.
@@ -1121,7 +1121,7 @@ If the "swap collision" test fails because the chase ghost does not step into th
 - [ ] **Step 5: Commit**
 
 ```bash
-cd /Users/kuok/Documents/GitHub/pac-man
+cd <repo root>
 git add src/engine/engine.ts tests/engine.test.ts
 git commit -m "feat: seeded multi-player game engine with ghosts, scoring and levels
 
@@ -1277,7 +1277,7 @@ describe('baselines', () => {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npx vitest run tests/agents.test.ts`
+Run: `cd <repo root> && npx vitest run tests/agents.test.ts`
 Expected: FAIL (cannot resolve `../src/agents/...`).
 
 - [ ] **Step 3: Write `src/agents/types.ts`**
@@ -1503,13 +1503,13 @@ export class ScriptedAgent implements Agent {
 
 - [ ] **Step 7: Run tests and typecheck**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npx vitest run tests/agents.test.ts && npm run typecheck`
+Run: `cd <repo root> && npx vitest run tests/agents.test.ts && npm run typecheck`
 Expected: all PASS, typecheck exits 0.
 
 - [ ] **Step 8: Commit**
 
 ```bash
-cd /Users/kuok/Documents/GitHub/pac-man
+cd <repo root>
 git add src/agents tests/agents.test.ts
 git commit -m "feat: agent interface, observation encoding, reply parsing and baseline agents
 
@@ -1716,7 +1716,7 @@ describe('results store', () => {
 
 - [ ] **Step 3: Run to verify they fail**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npx vitest run tests/openrouter.test.ts tests/server.test.ts`
+Run: `cd <repo root> && npx vitest run tests/openrouter.test.ts tests/server.test.ts`
 Expected: FAIL (modules not found).
 
 - [ ] **Step 4: Write `src/agents/openrouter.ts`**
@@ -1999,18 +1999,18 @@ OPENROUTER_API_KEY=
 
 - [ ] **Step 9: Run tests and typecheck**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npx vitest run tests/openrouter.test.ts tests/server.test.ts && npm run typecheck`
+Run: `cd <repo root> && npx vitest run tests/openrouter.test.ts tests/server.test.ts && npm run typecheck`
 Expected: all PASS, typecheck exits 0.
 
 - [ ] **Step 10: Smoke-test the server without a key**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && (npx tsx src/server/index.ts & SERVER=$!; sleep 2; curl -s localhost:8787/api/budget; echo; curl -s -X POST localhost:8787/api/decide -H 'content-type: application/json' -d '{"model":"a/b","system":"s","user":"u"}'; echo; kill $SERVER)`
+Run: `cd <repo root> && (npx tsx src/server/index.ts & SERVER=$!; sleep 2; curl -s localhost:8787/api/budget; echo; curl -s -X POST localhost:8787/api/decide -H 'content-type: application/json' -d '{"model":"a/b","system":"s","user":"u"}'; echo; kill $SERVER)`
 Expected: first line is `{"budgetUsd":1,"maxCalls":5000,"spentUsd":0,"calls":0}`, second is `{"error":"OPENROUTER_API_KEY is not set"}`. No network call is made.
 
 - [ ] **Step 11: Commit**
 
 ```bash
-cd /Users/kuok/Documents/GitHub/pac-man
+cd <repo root>
 git add src/agents/openrouter.ts src/server config tests/openrouter.test.ts tests/server.test.ts
 git commit -m "feat: OpenRouter agent and budget-capped local proxy server
 
@@ -2377,7 +2377,7 @@ describe('runPlan (offline, baselines only)', () => {
 
 - [ ] **Step 4: Run to verify they fail**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npx vitest run tests/session.test.ts tests/runner.test.ts tests/e2e.test.ts`
+Run: `cd <repo root> && npx vitest run tests/session.test.ts tests/runner.test.ts tests/e2e.test.ts`
 Expected: FAIL (modules not found).
 
 - [ ] **Step 5: Write `src/runner/scenarios.ts`**
@@ -2722,7 +2722,7 @@ export function winners(cells: Cell[]): Record<string, string> {
 
 - [ ] **Step 10: Run all tests and typecheck**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npm test && npm run typecheck`
+Run: `cd <repo root> && npm test && npm run typecheck`
 Expected: all test files PASS (grid, maze, engine, agents, openrouter, server, session, runner, e2e), typecheck exits 0.
 
 If the e2e determinism test fails, the cause is almost always timing: something other than the engine is non-deterministic (for example a baseline reading `performance.now()`). Baselines must return `latencyMs: 0`. Do not loosen the assertion.
@@ -2730,7 +2730,7 @@ If the e2e determinism test fails, the cause is almost always timing: something 
 - [ ] **Step 11: Commit**
 
 ```bash
-cd /Users/kuok/Documents/GitHub/pac-man
+cd <repo root>
 git add src/runner tests/session.test.ts tests/runner.test.ts tests/e2e.test.ts
 git commit -m "feat: real-time game session, scenario matrix, run plans, cost estimate and aggregation
 
@@ -2804,7 +2804,7 @@ describe('describePlayer', () => {
 
 - [ ] **Step 2: Run to verify it fails**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npx vitest run tests/panels.test.ts`
+Run: `cd <repo root> && npx vitest run tests/panels.test.ts`
 Expected: FAIL (cannot resolve `../src/ui/panels`).
 
 - [ ] **Step 3: Write `src/models.config.ts`**
@@ -3263,7 +3263,7 @@ $('boards').replaceChildren(...boards.map((b) => b.wrap));
 
 - [ ] **Step 9: Run tests, typecheck and production build**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npm test && npm run build`
+Run: `cd <repo root> && npm test && npm run build`
 Expected: all tests PASS (including `tests/panels.test.ts`), `tsc --noEmit` exits 0, `vite build` writes `dist/` with no errors.
 
 - [ ] **Step 10: Write `docs/usage.md`**
@@ -3337,7 +3337,7 @@ The heatmap shows models by scenario for the chosen metric (mean score, level, s
 
 - [ ] **Step 11: Manual verification in the real app**
 
-Run: `cd /Users/kuok/Documents/GitHub/pac-man && npm run dev` (leave the server off for this check).
+Run: `cd <repo root> && npm run dev` (leave the server off for this check).
 In the browser: uncheck nothing, leave only the three free baselines selected (LLM models enabled by default must be unchecked for this check), preset `default`, mode Benchmark, click Run.
 Expected: three boards appear side by side and animate; each shows a score line; after both scenarios finish the status says `Done.` and the heatmap fills with 3 rows by 2 columns. Switch mode to Arena and run again: a single board with three colored Pac-Men appears. Switch the metric dropdown and confirm the heatmap redraws.
 Then select one LLM model, click Estimate, and confirm the status line shows a nonzero worst-case dollar figure. Do not click Run on an LLM model unless a real key is configured and the budget is acceptable.
@@ -3345,7 +3345,7 @@ Then select one LLM model, click Estimate, and confirm the status line shows a n
 - [ ] **Step 12: Commit**
 
 ```bash
-cd /Users/kuok/Documents/GitHub/pac-man
+cd <repo root>
 git add index.html src/ui src/models.config.ts docs/usage.md tests/panels.test.ts
 git commit -m "feat: browser UI with live boards, scenario picker, cost estimate and results heatmap
 

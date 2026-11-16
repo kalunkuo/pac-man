@@ -4,7 +4,7 @@ Models compete at Pac-Man across a grid of maze sizes, layouts, ghost counts and
 
 ## Setup
 
-Requires Node 22 and npm.
+Requires Node 22.9 or newer (the proxy script uses the `--env-file-if-exists` flag) and npm.
 
     npm install
     cp config/.env.example config/.env   # then put your OpenRouter key in config/.env
@@ -20,11 +20,11 @@ Two terminals:
 
 The proxy starts even when `config/.env` does not exist. Without a key, paid calls return a clear `OPENROUTER_API_KEY is not set` error and nothing is sent to OpenRouter.
 
-Baselines (random, greedy, shortest-path planner) need no key and cost nothing. Greedy heads for the nearest dot in a straight line (ignoring walls), avoids turning straight back unless it is in a dead end, and avoids cells it has already visited in the current level (each earlier visit adds 2 to a cell's cost). It forgets its visits at the start of every game and level, and still ignores ghosts. The server is only needed for LLM models and for saving results to `results/`.
+Baselines (random, greedy, shortest-path planner) need no key and cost nothing. Greedy heads for the nearest dot by grid (Manhattan) distance, ignoring walls, avoids turning straight back unless it is in a dead end (it may turn straight back on its first move of a level and right after a respawn), and avoids cells it has already visited in the current level (each earlier visit adds 2 to a cell's cost). It forgets its visits at the start of every game and level, and still ignores ghosts. The server is only needed for LLM models and for saving results to `results/`.
 
 ## Add Jev and other models
 
-Edit `src/models.config.ts`. Set `model` to the OpenRouter model id, set `enabled: true`, and set `estUsdPerCall` to a rough worst-case price per call (check current OpenRouter prices). The estimate is only used for the pre-run warning. It scales with maze size: a Huge maze is about 3.9 times the area of a Large one. The estimate uses a factor of 1.7 for Small to Large (allowing for later levels growing to 41x41) and 3.7 for Huge, so the worst-case figure is an upper bound. The real cost comes from OpenRouter and counts against the budget cap.
+Edit `src/models.config.ts`. Set `model` to the OpenRouter model id, set `enabled: true`, and set `estUsdPerCall` to a rough worst-case price per call (check current OpenRouter prices). The estimate is only used for the pre-run warning. It scales with maze size: a Huge maze is about 3.9 times the area of a Large one. The estimate uses a factor of 1.7 for Small to Large (allowing for later levels growing to 41x41) and 3.7 for Huge, so the figure is a conservative worst-case estimate, not a strict upper bound. The real cost comes from OpenRouter and counts against the budget cap, and the spending cap you set is the hard guarantee.
 
 ## Modes
 
@@ -37,7 +37,7 @@ Both run in real time. A model keeps its last direction until its next answer ar
 
 Size: small 11x11, medium 21x21, large 31x31, huge 61x61. Layout: simple (open, many loops), medium (classic corridors), complex (perfect maze, many dead ends, no loops), labyrinth (perfect maze like complex, but carved with a straight bias so corridors are long and winding, with no loops). Ghosts: 0, 1, 2 or 4 (0 is a pure navigation control with nothing chasing the player) with mixed chase, ambush and random behavior. Each level grows the maze by 4 cells per side (cap 41) and adds a ghost every second level (cap 6). Growth never shrinks a huge maze, and a 0-ghost scenario stays at 0 ghosts.
 
-Vision: full (the default) or fog of war. In a fog scenario, a player sees only cells within 4 steps (Manhattan distance, ignoring walls). Every other cell is shown to the model as `?`, whether it holds a wall, pellet, ghost or another player. The model's own cell stays `P`. The prompt text gains a `Position: (x, y)` line (x is the column, y the row, both from 0) and a line explaining the fog. The free baselines see only the visible cells: greedy and planner ignore pellets and ghosts beyond 4 steps, and the planner treats every cell beyond 4 steps as a wall, so it only plans through cells it can see (a visible pellet behind a long detour is not chased). When no pellet is reachable that way they keep moving in their current direction (turning without reversing when blocked). The spectator board still draws the whole maze, so you can watch what the models cannot see. Fog scenario ids and names end in `-fog` and `, fog`.
+Vision: full (the default) or fog of war. In a fog scenario, a player sees only cells within 4 steps (Manhattan distance, ignoring walls). Every other cell is shown to the model as `?`, whether it holds a wall, pellet, ghost or another player. The model's own cell stays `P`. The prompt text gains a `Position: (x, y)` line (x is the column, y the row, both from 0) and a line explaining the fog. The free baselines see only the visible cells: greedy and planner ignore pellets and ghosts beyond 4 steps, and the planner treats every cell beyond 4 steps as a wall, so it only plans through cells it can see (a visible pellet behind a long detour is not chased). When no pellet is reachable that way, the greedy baseline keeps moving in its current direction (turning without reversing when blocked). The planner does the same unless a ghost is visible: it then flees, moving to the neighbouring cell that is farthest from the visible ghosts. The spectator board still draws the whole maze, so you can watch what the models cannot see. Fog scenario ids and names end in `-fog` and `, fog`.
 
 There are 128 scenarios: 4 sizes x 4 layouts x 4 ghost counts x 2 vision settings.
 
@@ -45,7 +45,7 @@ Presets: `default` (2 scenarios, cheapest), `sizeSweep` (Small, Medium and Large
 
 ## Controlling cost
 
-- Click Estimate before a run. It shows a worst-case upper bound.
+- Click Estimate before a run. It shows a conservative worst-case estimate. The spending cap you set is the hard guarantee, not the estimate.
 - The default selection is the three free baselines only. Paid models are listed but unchecked; tick them on purpose.
 - Run always shows a confirm dialog when a paid model is selected (it says so if no cost estimate is available), then sets the server budget. If the proxy is not running or rejects the budget, the run is cancelled and nothing is sent to a model. Baseline-only runs never contact the server before running.
 - The server refuses calls once the money cap or the call cap is reached, and the run stops with partial results.
@@ -63,13 +63,12 @@ Presets: `default` (2 scenarios, cheapest), `sizeSweep` (Small, Medium and Large
 - In arena mode, players are also numbered 1, 2, 3 and so on, both on the board and in the legend. Players that share a cell are drawn side by side, slightly smaller.
 - Ghosts are drawn as ghosts, and their eyes look the way they are moving.
 - After a Pac-Man eats a big white power pellet, ghosts turn blue for about 40 ticks and flash blue and white in the last 10. A blue ghost can be eaten for 200 points.
-- The Board size selector in Run settings sets how large boards are drawn. Auto fits the page width, and Small, Medium, Large and Extra large fix it.
 - The free baselines act on the current tick's state, because the game waits for their decision. Paid models act when their answer arrives, so they steer on a slightly older view of the board.
 - In arena mode, the order in which players are processed rotates every tick, so nobody gets contested dots by default.
 
 ## Results
 
-The Board size selector in Run settings sets how large the boards are drawn. Auto (the default) fits the boards to the page width, so a single board is large and several boards share a row. The other choices fix the board width from Small (320 px) to Extra large (960 px), and a change applies immediately, even during a run.
+The Board size selector in Run settings sets how large the boards are drawn. Auto (the default) fits the boards to the page width, so a single board is large and several boards share a row. The other choices fix the board width from Small (320 px) to Extra large (960 px), and a change applies immediately, even during a run and on the idle preview board.
 
 Before the first run the page shows a static preview board. Nothing plays on it, and the live boards replace it when a run starts.
 
@@ -121,7 +120,7 @@ A model that fails 5 calls in a row is disqualified. Its board then shows `error
 - `http 502: upstream 401 - ...`: OpenRouter rejected the API key.
 - `upstream credit exhausted`: the OpenRouter account is out of credit. The run stops with a budget message instead of counting an error.
 - `unparseable: "..."`: the model replied with something that has no UP, DOWN, LEFT or RIGHT. Often it started explaining instead of answering within the 16-token limit. The quote shows the start of its reply.
-- `network`: the page could not reach the proxy. Check that `npm run server` is running.
+- `network`: the page could not reach the proxy, or the request timed out (30 seconds). Check that `npm run server` is running. This is treated as a connection failure, so it is excluded from rankings rather than counted against the model.
 
 Restart the proxy (`npm run server`) after pulling server changes, because it does not reload itself. Without a restart, failures still show only the bare `http <status>`.
 

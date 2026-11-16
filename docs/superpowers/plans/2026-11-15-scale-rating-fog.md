@@ -10,7 +10,7 @@
 
 ## Global constraints
 
-- Work only in `/Users/kuok/Documents/GitHub/pac-man`, branch `feat/pacman-arena`. Do not push or touch any git remote.
+- Work only in `.`, branch `feat/pacman-arena`. Do not push or touch any git remote.
 - The working tree may contain an uncommitted user edit to `src/models.config.ts`. Never stage or commit it. Use explicit `git add <paths>`; never `git add -A` or `git commit -a`.
 - A real OpenRouter key is in `config/.env` on this machine. NEVER make a real OpenRouter call, NEVER start the proxy server (`npm run server` or `tsx src/server/index.ts`), never read or print `config/.env`. All tests are offline and free. You may start only the Vite dev server (`npx vite --port 5199`) for a transform smoke check; kill it by PID afterwards and confirm the port is free.
 - The engine (`src/engine`) and `src/ranking/*.ts` stay pure: no DOM, no I/O, no `Date`, no `Math.random` (use `makeRng(seed)` for any randomness).

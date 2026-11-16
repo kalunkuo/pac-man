@@ -1,6 +1,14 @@
 {
   "name": "pacman-arena",
   "private": true,
+  "description": "Pac-Man where AI models compete, with a ranking and cost controls",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kalunkuo/pac-man.git"
+  },
+  "engines": {
+    "node": ">=22.9"
+  },
   "type": "module",
   "scripts": {
     "dev": "vite",
