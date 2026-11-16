@@ -1,0 +1,192 @@
+import { describe, expect, it } from 'vitest';
+import {
+  SCORE,
+  createGame,
+  eliminate,
+  levelConfig,
+  setDirection,
+  step,
+} from '../src/engine/engine';
+import { key, legalMoves, moved } from '../src/engine/grid';
+import type { Direction } from '../src/engine/types';
+import { config } from './helpers';
+
+function setup(over = {}) {
+  const state = createGame(config(over), ['a']);
+  const p = state.players[0];
+  const dir = legalMoves(state.maze.walls, p.pos)[0];
+  const next = moved(p.pos, dir);
+  state.pellets = new Set(['99,99']); // keeps the level from clearing
+  state.powers = new Set();
+  return { state, p, dir, next };
+}
+
+describe('levelConfig', () => {
+  it('grows the maze and ghost count with the level and caps them', () => {
+    const base = config({ width: 11, height: 11, ghostCount: 1, seed: 10 });
+    expect(levelConfig(base, 1)).toMatchObject({ width: 11, ghostCount: 1, seed: 10 });
+    expect(levelConfig(base, 2)).toMatchObject({ width: 15, height: 15, ghostCount: 1, seed: 11 });
+    expect(levelConfig(base, 3)).toMatchObject({ width: 19, ghostCount: 2 });
+    expect(levelConfig(base, 20)).toMatchObject({ width: 41, height: 41, ghostCount: 6 });
+  });
+});
+
+describe('createGame', () => {
+  it('starts every player at the pac start with full lives', () => {
+    const state = createGame(config({ lives: 3 }), ['a', 'b']);
+    expect(state.players).toHaveLength(2);
+    for (const p of state.players) {
+      expect(p.pos).toEqual(state.maze.pacStart);
+      expect(p.lives).toBe(3);
+      expect(p.alive).toBe(true);
+    }
+    expect(state.ghosts).toHaveLength(1);
+    expect(state.status).toBe('running');
+    expect(state.level).toBe(1);
+  });
+
+  it('assigns mixed ghost behaviours in rotation', () => {
+    const state = createGame(config({ ghostCount: 4, ghostBehavior: 'mixed' }), ['a']);
+    expect(state.ghosts.map((g) => g.behavior)).toEqual(['chase', 'ambush', 'random', 'chase']);
+  });
+});
+
+describe('step', () => {
+  it('moves the player and eats a pellet for 10 points', () => {
+    const { state, p, dir, next } = setup();
+    state.pellets.add(key(next));
+    setDirection(state, 'a', dir);
+    step(state);
+    expect(p.pos).toEqual(next);
+    expect(p.score).toBe(SCORE.pellet);
+    expect(state.pellets.has(key(next))).toBe(false);
+  });
+
+  it('eating a power pellet scores 50 and frightens ghosts', () => {
+    const { state, p, dir, next } = setup();
+    state.powers.add(key(next));
+    setDirection(state, 'a', dir);
+    step(state);
+    expect(p.score).toBe(SCORE.power);
+    expect(state.frightenedTicks).toBeGreaterThan(0);
+  });
+
+  it('keeps moving in the current direction when the wanted one is blocked', () => {
+    const { state, p } = setup();
+    const open = legalMoves(state.maze.walls, p.pos);
+    const blocked = (['UP', 'DOWN', 'LEFT', 'RIGHT'] as Direction[]).find((d) => !open.includes(d))!;
+    p.dir = open[0];
+    setDirection(state, 'a', blocked);
+    step(state);
+    expect(p.pos).toEqual(moved(state.maze.pacStart, open[0]));
+  });
+
+  it('a ghost collision costs a life and respawns the player', () => {
+    const { state, p, dir, next } = setup({ lives: 3 });
+    state.tick = 100; // 101 is odd, so the level-1 ghost does not move this tick
+    p.invulnerableUntil = 0;
+    state.ghosts = [{ pos: { ...next }, dir: 'UP', behavior: 'random' }];
+    setDirection(state, 'a', dir);
+    step(state);
+    expect(p.lives).toBe(2);
+    expect(p.pos).toEqual(state.maze.pacStart);
+    expect(p.invulnerableUntil).toBeGreaterThan(state.tick);
+  });
+
+  it('invulnerable players survive a ghost collision', () => {
+    const { state, p, dir, next } = setup({ lives: 3 });
+    state.tick = 100;
+    p.invulnerableUntil = 1000;
+    state.ghosts = [{ pos: { ...next }, dir: 'UP', behavior: 'random' }];
+    setDirection(state, 'a', dir);
+    step(state);
+    expect(p.lives).toBe(3);
+  });
+
+  it('a frightened ghost is eaten for 200 points and sent home', () => {
+    const { state, p, dir, next } = setup();
+    state.tick = 100; // frightened period is 3, and 101 % 3 !== 0, so the ghost stays put
+    p.invulnerableUntil = 0;
+    state.frightenedTicks = 10;
+    state.ghosts = [{ pos: { ...next }, dir: 'UP', behavior: 'chase' }];
+    setDirection(state, 'a', dir);
+    step(state);
+    expect(p.score).toBe(SCORE.ghost);
+    expect(state.ghosts[0].pos).toEqual(state.maze.ghostStart);
+  });
+
+  it('detects a swap collision (player and ghost pass through each other)', () => {
+    const { state, p, dir, next } = setup({ lives: 3 });
+    state.tick = 101; // 102 is even, so the level-1 ghost moves this tick
+    p.invulnerableUntil = 0;
+    const back: Record<Direction, Direction> = { UP: 'DOWN', DOWN: 'UP', LEFT: 'RIGHT', RIGHT: 'LEFT' };
+    // Make the ghost's cell a dead end whose only exit is the player's start cell,
+    // so the ghost is forced to step into the cell the player is leaving.
+    for (const d of legalMoves(state.maze.walls, next)) {
+      if (d === back[dir]) continue;
+      const w = moved(next, d);
+      state.maze.walls[w.y][w.x] = true;
+    }
+    state.ghosts = [{ pos: { ...next }, dir: 'UP', behavior: 'chase' }];
+    setDirection(state, 'a', dir);
+    step(state);
+    expect(p.lives).toBe(2);
+  });
+
+  it('ends the game when the last life is lost', () => {
+    const { state, p, dir, next } = setup({ lives: 1 });
+    state.tick = 100;
+    p.invulnerableUntil = 0;
+    state.ghosts = [{ pos: { ...next }, dir: 'UP', behavior: 'random' }];
+    setDirection(state, 'a', dir);
+    step(state);
+    expect(p.alive).toBe(false);
+    expect(p.diedAtTick).toBe(101);
+    expect(state.status).toBe('over');
+  });
+
+  it('clears the level: bonus, next level, bigger maze', () => {
+    const { state, p, dir, next } = setup({ width: 11, height: 11 });
+    state.pellets = new Set([key(next)]);
+    setDirection(state, 'a', dir);
+    step(state);
+    expect(p.score).toBe(SCORE.pellet + SCORE.levelClear);
+    expect(state.level).toBe(2);
+    expect(state.maze.width).toBe(15);
+    expect(p.pos).toEqual(state.maze.pacStart);
+    expect(state.pellets.size).toBeGreaterThan(0);
+  });
+
+  it('stops at maxTicks', () => {
+    const state = createGame(config({ maxTicks: 3 }), ['a']);
+    for (let i = 0; i < 3; i++) step(state);
+    expect(state.status).toBe('over');
+    const tick = state.tick;
+    step(state);
+    expect(state.tick).toBe(tick);
+  });
+
+  it('eliminate removes a player and ends the game when none are left', () => {
+    const state = createGame(config(), ['a', 'b']);
+    eliminate(state, 'a');
+    expect(state.status).toBe('running');
+    eliminate(state, 'b');
+    expect(state.status).toBe('over');
+  });
+
+  it('is deterministic for the same config and inputs', () => {
+    const run = (): string => {
+      const state = createGame(config({ ghostCount: 2, ghostBehavior: 'mixed' }), ['a']);
+      const script: Direction[] = ['RIGHT', 'DOWN', 'LEFT', 'UP'];
+      const trace: string[] = [];
+      for (let i = 0; i < 200 && state.status === 'running'; i++) {
+        setDirection(state, 'a', script[Math.floor(i / 3) % 4]);
+        step(state);
+        const g = state.ghosts.map((x) => `${x.pos.x}:${x.pos.y}`).join('|');
+        trace.push(`${state.players[0].pos.x},${state.players[0].pos.y},${state.players[0].score},${g}`);
+      }
+      return trace.join(';');
+    };
+    expect(run()).toBe(run());
+  });
+});
