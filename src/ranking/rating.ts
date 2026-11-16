@@ -2,6 +2,7 @@ import { makeRng } from '../engine/rng';
 import {
   csvEscape,
   groupKey,
+  hasFiniteNumbers,
   isConnectionFailure,
   parseScenarioId,
   type RankFilter,
@@ -121,7 +122,6 @@ export function buildRatings(runs: StoredRun[], filter: Omit<RankFilter, 'settin
       (!filter.ghosts?.length || filter.ghosts.includes(sc.ghosts))
     );
   };
-  const finite = (v: number) => (Number.isFinite(v) ? v : 0);
 
   for (const run of [...runs].sort((a, b) => a.runId.localeCompare(b.runId))) {
     if (!run.meta) continue;
@@ -133,7 +133,7 @@ export function buildRatings(runs: StoredRun[], filter: Omit<RankFilter, 'settin
     }
     for (const a of run.meta.agents) labels.set(a.id, a.label);
     for (const r of run.results) {
-      if (!inScenario(r.scenarioId) || !Number.isFinite(r.score)) continue;
+      if (!inScenario(r.scenarioId) || !hasFiniteNumbers(r)) continue;
       if (r.truncated === true) {
         truncatedExcluded++;
         continue;
@@ -145,10 +145,10 @@ export function buildRatings(runs: StoredRun[], filter: Omit<RankFilter, 'settin
       const s = stats.get(r.agentId) ?? { n: 0, score: 0, survived: 0, lives: 0, latency: 0, cost: 0 };
       s.n++;
       s.score += r.score;
-      s.survived += finite(r.survivedTicks);
-      s.lives += finite(r.livesLeft);
-      s.latency += finite(r.avgLatencyMs);
-      s.cost += finite(r.costUsd);
+      s.survived += r.survivedTicks;
+      s.lives += r.livesLeft;
+      s.latency += r.avgLatencyMs;
+      s.cost += r.costUsd;
       stats.set(r.agentId, s);
 
       const mk = `${gk}|${r.scenarioId}|${r.seed}`;

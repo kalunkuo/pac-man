@@ -151,6 +151,20 @@ describe('buildRatings', () => {
     expect(rowOf(r.rows, 'a').games).toBe(2);
   });
 
+  it('skips a result with non-finite survivedTicks or livesLeft without counting it', () => {
+    const r = buildRatings(
+      [run('run-1', [
+        game('a', S1, 1, 10), game('b', S1, 1, 20),
+        game('a', S1, 2, 10, { survivedTicks: NaN }), game('b', S1, 2, 20),
+        game('a', S1, 3, 10, { livesLeft: Infinity, truncated: true }), game('b', S1, 3, 20),
+      ])],
+      { settingsKey: key },
+    );
+    expect(r.matches).toBe(1);
+    expect(r.truncatedExcluded).toBe(0);
+    expect(rowOf(r.rows, 'a')).toMatchObject({ games: 1, meanSurvivedTicks: 100, meanLivesLeft: 0 });
+  });
+
   it('gives unbeaten models a finite rating', () => {
     const r = buildRatings([run('run-1', many({ a: 100, b: 1, c: 0 }, 20))], { settingsKey: key });
     for (const row of r.rows) {

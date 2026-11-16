@@ -245,6 +245,20 @@ describe('buildRanking', () => {
     expect(rankOf(r, 'b')).toMatchObject({ meanScore: 80, games: 1, totalCostUsd: 0.01 });
   });
 
+  it('skips a result with non-finite survivedTicks or livesLeft without counting it', () => {
+    const r = buildRanking(
+      [run('run-1', [
+        game('a', S1, 100), game('b', S1, 80),
+        game('b', S1, 5, { survivedTicks: NaN }), game('b', S1, 5, { livesLeft: Infinity }),
+        game('b', S1, 5, { survivedTicks: NaN, truncated: true }),
+      ])],
+      { settingsKey: key },
+    );
+    expect(r.games).toBe(2);
+    expect(r.truncatedExcluded).toBe(0);
+    expect(rankOf(r, 'b')).toMatchObject({ games: 1, meanSurvivedTicks: 100, meanLivesLeft: 0 });
+  });
+
   it('orders equal average ranks by higher mean score and shares the rank number (1, 1, 3)', () => {
     const r = buildRanking(
       [run('run-1', [

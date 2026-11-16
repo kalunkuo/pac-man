@@ -121,6 +121,11 @@ export function isConnectionFailure(r: GameResult): boolean {
   return r.disqualified && !/^(unparseable|no move)/.test(r.lastError ?? '');
 }
 
+/** Games with a non-finite number are skipped entirely, so they cannot distort any mean. */
+export function hasFiniteNumbers(r: GameResult): boolean {
+  return [r.score, r.level, r.survivedTicks, r.livesLeft, r.avgLatencyMs, r.costUsd].every(Number.isFinite);
+}
+
 function matches(sc: { size: SizeKey; complexity: Complexity; ghosts: number }, f: RankFilter): boolean {
   return (
     (!f.sizes?.length || f.sizes.includes(sc.size)) &&
@@ -188,7 +193,7 @@ export function buildRanking(runs: StoredRun[], filter: RankFilter): Ranking {
     for (const r of run.results) {
       const sc = parseScenarioId(r.scenarioId);
       if (!sc || !matches(sc, filter)) continue;
-      if (![r.score, r.level, r.avgLatencyMs, r.costUsd].every(Number.isFinite)) continue;
+      if (!hasFiniteNumbers(r)) continue;
       if (r.truncated === true) {
         truncatedExcluded++;
         continue;

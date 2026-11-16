@@ -75,9 +75,11 @@ The Rating view compares models head to head across all runs, so you do not have
 - A match is two models playing the same maze: the same run settings, scenario and seed. The model with the higher score wins and equal scores are a draw. If a model played that maze more than once, its mean score is used. Matches are decided by score only. Survival (ticks) and Lives left are shown beside it for context.
 - Wins and draws are turned into a rating on an Elo-like scale. 1000 is the average model, and every 400 points means about 10 times the odds of winning a match.
 - 95% range is how much the rating could move with different luck, found by resampling the matches. More runs on more seeds and scenarios narrow the range, so a wide range means the rating is still uncertain.
+- The 95% range is a bootstrap over matches. It can look very narrow, or zero width, for a model that has won or lost every match. That reflects thin evidence, not certainty. Matches from the same maze are correlated, so the ranges are somewhat optimistic.
+- The 95% range is clamped so it always contains the rating shown.
 - Only models that are linked by shared matches can be compared. Models that have not played the same scenarios and seeds as the rest are listed under "Not connected yet".
 - Games stopped early are not counted. Games that ended by connection or setup errors (for example a wrong model id or a network failure) are not counted either, so a broken setup does not hurt a model's rating. A model that answered but gave no usable move still counts. Each exclusion is shown in a note.
-- Arena runs are not rated. They are counted in a note.
+- Arena runs are not rated. They are counted in the "not used for ratings" note only when All settings is selected, because arena runs belong to a different settings group.
 - The first select starts on All settings, which mixes runs with different tick speeds and max ticks. That gives more matches but blurs the result, because the same model can score differently at different settings. Pick one settings group for a cleaner comparison.
 - Cost per 1,000 pts is the model's total cost divided by its total score in thousands, or `-` when its score is 0.
 

@@ -2,6 +2,7 @@ import type { Complexity } from '../engine/types';
 import { buildRanking, listGroups, toCsv, type StoredRun } from '../ranking/rank';
 import { buildRatings, ratingsToCsv } from '../ranking/rating';
 import { GHOST_COUNTS, SIZE_KEYS, type SizeKey } from '../runner/scenarios';
+import { reconcileChoice } from './ranking-state';
 
 const ALL_SETTINGS = '';
 const COMPLEXITY_OPTIONS: Complexity[] = ['simple', 'medium', 'complex'];
@@ -98,7 +99,10 @@ export function mountRankingPanel(container: HTMLElement): { update(runs: Stored
     URL.revokeObjectURL(url);
   };
 
-  settings.onchange = render;
+  settings.onchange = () => {
+    chosen[view] = settings.value;
+    render();
+  };
   container.replaceChildren(empty, viewButtons, settingsLabel, filters, table, notes, csvButton);
 
   function cell(row: HTMLTableRowElement, text: string) {
@@ -121,8 +125,8 @@ export function mountRankingPanel(container: HTMLElement): { update(runs: Stored
     const options = groups.map((g) => new Option(`${g.label} (${g.runs} ${g.runs === 1 ? 'run' : 'runs'})`, g.key));
     if (view === 'rating') options.unshift(new Option('All settings', ALL_SETTINGS));
     settings.replaceChildren(...options);
-    const previous = chosen[view];
-    if (previous !== undefined && options.some((o) => o.value === previous)) settings.value = previous;
+    const keys = options.map((o) => o.value);
+    settings.value = reconcileChoice(chosen[view], keys, keys[0] ?? ALL_SETTINGS);
     chosen[view] = settings.value;
 
     const lines: string[] = [];
