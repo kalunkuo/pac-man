@@ -332,4 +332,26 @@ describe('baselines', () => {
     for (let i = 0; i < 10; i++)
       expect((await a.decide(ctxFor(state))).dir).toBe((await b.decide(ctxFor(state))).dir);
   });
+
+  describe('random agent across games', () => {
+    const play = async (agent: RandomAgent, seed: number): Promise<string[]> => {
+      const state = createGame(config({ seed }), ['a']);
+      const out: string[] = [];
+      for (let i = 0; i < 12; i++) out.push((await agent.decide(ctxFor(state))).dir ?? 'none');
+      return out;
+    };
+
+    it('replays the same moves for the same game even after another game', async () => {
+      const agent = new RandomAgent('r', 'R', 5);
+      const first = await play(agent, 1);
+      await play(agent, 2);
+      expect(await play(agent, 1)).toEqual(first);
+      expect(await play(new RandomAgent('r', 'R', 5), 1)).toEqual(first);
+    });
+
+    it('plays differently in games with different seeds', async () => {
+      const agent = new RandomAgent('r', 'R', 5);
+      expect(await play(agent, 1)).not.toEqual(await play(agent, 2));
+    });
+  });
 });

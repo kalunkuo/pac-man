@@ -52,13 +52,14 @@ function wander(ctx: DecideContext, moves: Direction[]): Direction {
 
 export class RandomAgent implements Agent {
   readonly kind = 'baseline' as const;
-  private readonly rng: Rng;
-  constructor(readonly id: string, readonly label: string, seed: number) {
-    this.rng = makeRng(seed);
-  }
+  // One rng per game, so a result never depends on which games ran before it.
+  private readonly rngs = new WeakMap<GameState, Rng>();
+  constructor(readonly id: string, readonly label: string, private readonly seed: number) {}
   async decide(ctx: DecideContext): Promise<Decision> {
+    let rng = this.rngs.get(ctx.state);
+    if (!rng) this.rngs.set(ctx.state, (rng = makeRng(this.seed ^ (ctx.state.config.seed >>> 0))));
     const moves = legalMoves(ctx.state.maze.walls, me(ctx).pos);
-    return free(moves.length ? moves[Math.floor(this.rng() * moves.length)] : null);
+    return free(moves.length ? moves[Math.floor(rng() * moves.length)] : null);
   }
 }
 
