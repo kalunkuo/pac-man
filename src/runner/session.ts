@@ -39,19 +39,27 @@ export class GameSession {
     return this.halted || this.state.status === 'over';
   }
 
-  tick(): void {
+  /**
+   * Baseline agents have no real latency, so the step waits for their decision and applies it to
+   * the same step. LLM agents are never awaited: their latency is part of the benchmark.
+   */
+  async tick(): Promise<void> {
     if (this.over) return;
+    const pending: Promise<void>[] = [];
     for (const agent of this.agents) {
       const player = this.state.players.find((p) => p.id === agent.id);
       if (!player || !player.alive || this.inflight.has(agent.id)) continue;
       const stats = this.stats[agent.id];
       if (agent.kind === 'llm' && stats.calls >= this.maxCallsPerGame) continue;
-      this.request(agent);
+      const request = this.request(agent);
+      if (agent.kind === 'baseline') pending.push(request);
     }
+    await Promise.all(pending);
+    if (this.over) return;
     step(this.state);
   }
 
-  private request(agent: Agent): void {
+  private request(agent: Agent): Promise<void> {
     const stats = this.stats[agent.id];
     this.inflight.add(agent.id);
     stats.calls++;
@@ -61,7 +69,7 @@ export class GameSession {
       playerId: agent.id,
     };
     // The executor runs decide() synchronously (so the request starts this tick) and turns a sync throw into a rejection.
-    new Promise<Decision>((resolve) => resolve(agent.decide(ctx)))
+    return new Promise<Decision>((resolve) => resolve(agent.decide(ctx)))
       .then((d) => {
         stats.totalLatencyMs += d.latencyMs;
         stats.costUsd += d.costUsd;
@@ -94,7 +102,7 @@ const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve,
 
 export async function runSession(session: GameSession, tickMs: number, signal?: AbortSignal): Promise<void> {
   while (!session.over && !signal?.aborted) {
-    session.tick();
+    await session.tick();
     await sleep(tickMs);
   }
 }

@@ -34,18 +34,43 @@ describe('GameSession', () => {
     const state = createGame(config(), ['a']);
     const dir = legalMoves(state.maze.walls, state.players[0].pos)[0];
     const session = new GameSession(state, [new ScriptedAgent('a', 'A', [dir])], 100);
-    session.tick();
+    await session.tick();
     await flush();
     expect(state.players[0].wantDir).toBe(dir);
+  });
+
+  it('applies a baseline decision in the same tick, before the step', async () => {
+    const state = createGame(config(), ['a']);
+    const start = { ...state.players[0].pos };
+    const dir = legalMoves(state.maze.walls, start).find((d) => d !== 'LEFT') as Direction;
+    const session = new GameSession(state, [new ScriptedAgent('a', 'A', [dir])], 100);
+    await session.tick();
+    const want = { LEFT: [-1, 0], RIGHT: [1, 0], UP: [0, -1], DOWN: [0, 1] }[dir];
+    expect(state.players[0].pos).toEqual({ x: start.x + want[0], y: start.y + want[1] });
+  });
+
+  it('does not make the step wait for an llm agent', async () => {
+    const agent = new DeferredAgent('a', 'A', 'llm');
+    const session = mk([agent]);
+    await session.tick(); // resolves although the agent has not answered
+    expect(session.state.tick).toBe(1);
+  });
+
+  it('still steps when a baseline decision throws', async () => {
+    const thrower: Agent = { id: 't', label: 'T', kind: 'baseline', decide: async () => { throw new Error('boom'); } };
+    const session = mk([thrower]);
+    await session.tick();
+    expect(session.state.tick).toBe(1);
+    expect(session.stats.t.errors).toBe(1);
   });
 
   it('keeps one request in flight and applies the answer when it arrives (latency counts)', async () => {
     const agent = new DeferredAgent('a', 'A');
     const session = mk([agent]);
     const player = session.state.players[0];
-    session.tick();
-    session.tick();
-    session.tick();
+    await session.tick();
+    await session.tick();
+    await session.tick();
     expect(agent.calls).toBe(1); // still waiting, no second request
     const before = player.wantDir;
     const other: Direction = before === 'UP' ? 'DOWN' : 'UP';
@@ -53,7 +78,7 @@ describe('GameSession', () => {
     await flush();
     expect(player.wantDir).toBe(other);
     expect(session.stats.a).toMatchObject({ calls: 1, errors: 0, totalLatencyMs: 50, costUsd: 0.001 });
-    session.tick();
+    await session.tick();
     expect(agent.calls).toBe(2); // idle again, asks again
   });
 
@@ -61,7 +86,7 @@ describe('GameSession', () => {
     const agent = new DeferredAgent('a', 'A');
     const session = mk([agent]);
     for (let i = 0; i < MAX_CONSECUTIVE_ERRORS; i++) {
-      session.tick();
+      await session.tick();
       agent.answer({ dir: null, latencyMs: 1, costUsd: 0, error: 'unparseable' });
       await flush();
     }
@@ -74,11 +99,11 @@ describe('GameSession', () => {
     const agent = new DeferredAgent('a', 'A');
     const session = mk([agent]);
     expect(session.stats.a.lastError).toBeNull();
-    session.tick();
+    await session.tick();
     agent.answer({ dir: null, latencyMs: 1, costUsd: 0, error: 'http 502: upstream 404' });
     await flush();
     expect(session.stats.a.lastError).toBe('http 502: upstream 404');
-    session.tick();
+    await session.tick();
     agent.answer({ dir: null, latencyMs: 1, costUsd: 0 });
     await flush();
     expect(session.stats.a.lastError).toBe('no move');
@@ -92,7 +117,7 @@ describe('GameSession', () => {
       },
     };
     const s2 = mk([thrower]);
-    s2.tick();
+    await s2.tick();
     await flush();
     expect(s2.stats.t.lastError).toBe('boom');
   });
@@ -100,10 +125,10 @@ describe('GameSession', () => {
   it('a good answer resets the consecutive error count', async () => {
     const agent = new DeferredAgent('a', 'A');
     const session = mk([agent]);
-    session.tick();
+    await session.tick();
     agent.answer({ dir: null, latencyMs: 1, costUsd: 0, error: 'x' });
     await flush();
-    session.tick();
+    await session.tick();
     agent.answer({ dir: 'UP', latencyMs: 1, costUsd: 0 });
     await flush();
     expect(session.stats.a.consecutiveErrors).toBe(0);
@@ -120,7 +145,7 @@ describe('GameSession', () => {
       },
     };
     const session = mk([agent]);
-    session.tick();
+    await session.tick();
     await flush();
     expect(session.halted).toBe(true);
     expect(session.over).toBe(true);
@@ -136,7 +161,7 @@ describe('GameSession', () => {
       },
     };
     const session = mk([agent]);
-    session.tick();
+    await session.tick();
     await flush();
     expect(session.stats.a.errors).toBe(1);
     expect(session.halted).toBe(false);
@@ -147,9 +172,10 @@ describe('GameSession', () => {
     const base = new DeferredAgent('b', 'B', 'baseline');
     const session = mk([llm, base], 2);
     for (let i = 0; i < 5; i++) {
-      session.tick();
+      const ticking = session.tick(); // waits for the baseline, not for the llm
       llm.answer({ dir: 'UP', latencyMs: 0, costUsd: 0 });
       base.answer({ dir: 'UP', latencyMs: 0, costUsd: 0 });
+      await ticking;
       await flush();
     }
     expect(llm.calls).toBe(2);

@@ -31,7 +31,7 @@ Edit `src/models.config.ts`. Set `model` to the OpenRouter model id, set `enable
 - Benchmark: each model gets its own board on an identical seeded maze. Scores are directly comparable.
 - Arena: all models race through one shared maze.
 
-Both run in real time. A model keeps its last direction until its next answer arrives, so slow models lose ground.
+Both run in real time. A model keeps its last direction until its next answer arrives, so slow models lose ground. The free baselines have no latency: the game waits for their decision each tick, so they always act on the current position.
 
 ## Scenarios
 
