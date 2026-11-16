@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { avatarRadius, boardTargetPx, eyeOffset, legendLabels, mouthAngles } from '../src/ui/render';
+import { avatarRadius, boardTargetPx, eyeOffset, legendLabels, mouthAngles, overlapLayout } from '../src/ui/render';
 import type { Direction } from '../src/engine/types';
 
 const DIRS: Direction[] = ['RIGHT', 'DOWN', 'LEFT', 'UP'];
@@ -117,5 +117,25 @@ describe('legendLabels', () => {
   it('is empty for a single player', () => {
     expect(legendLabels(['a'])).toEqual({});
     expect(legendLabels([])).toEqual({});
+  });
+});
+
+describe('overlapLayout', () => {
+  it('leaves a lone player centered at full size', () => {
+    expect(overlapLayout(1, 0, 20)).toEqual({ dx: 0, scale: 1 });
+  });
+
+  it('spreads three players symmetrically', () => {
+    const [a, b, c] = [0, 1, 2].map((i) => overlapLayout(3, i, 20));
+    expect(b.dx).toBeCloseTo(0);
+    expect(a.dx).toBeCloseTo(-c.dx);
+    expect(c.dx).toBeCloseTo(9);
+    expect(a.scale).toBeCloseTo(0.76);
+  });
+
+  it('never shrinks below 0.6 and stays finite for a zero cell', () => {
+    expect(overlapLayout(20, 3, 20).scale).toBe(0.6);
+    const z = overlapLayout(3, 2, 0);
+    expect(Number.isFinite(z.dx) && Number.isFinite(z.scale)).toBe(true);
   });
 });

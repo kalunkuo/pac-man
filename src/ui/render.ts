@@ -35,6 +35,15 @@ export function avatarRadius(cell: number): number {
   return Math.max(cell * 0.42, MIN_AVATAR_RADIUS);
 }
 
+/** Side-by-side layout for `count` alive players sharing one cell: x offset in px and avatar scale. */
+export function overlapLayout(count: number, index: number, cell: number): { dx: number; scale: number } {
+  const m = Math.max(1, count);
+  return {
+    dx: (index - (m - 1) / 2) * cell * 0.45,
+    scale: Math.max(0.6, 1 - 0.12 * (m - 1)),
+  };
+}
+
 /** Short on-board labels (playerId to "1", "2", ...) for shared boards; empty when one player is alone. */
 export function legendLabels(playerIds: string[]): Record<string, string> {
   if (playerIds.length < 2) return {};
@@ -173,10 +182,19 @@ export function drawBoard(
     const body = frightened ? (flashWhite ? '#ffffff' : '#4466ff') : GHOST_COLORS[g.behavior];
     drawGhost(ctx, g.pos.x * cell + cell / 2, g.pos.y * cell + cell / 2, avatarRadius(cell), g.dir, body, frightened);
   }
-  const r = avatarRadius(cell);
+  const baseR = avatarRadius(cell);
+  const sharing = new Map<string, string[]>();
   for (const p of state.players) {
     if (!p.alive) continue;
-    const cx = p.pos.x * cell + cell / 2;
+    const k = `${p.pos.x},${p.pos.y}`;
+    sharing.set(k, [...(sharing.get(k) ?? []), p.id]);
+  }
+  for (const p of state.players) {
+    if (!p.alive) continue;
+    const group = sharing.get(`${p.pos.x},${p.pos.y}`) as string[];
+    const { dx, scale } = overlapLayout(group.length, group.indexOf(p.id), cell);
+    const r = Math.max(baseR * scale, MIN_AVATAR_RADIUS * 0.7);
+    const cx = p.pos.x * cell + cell / 2 + dx;
     const cy = p.pos.y * cell + cell / 2;
     drawPacman(ctx, cx, cy, r, p.dir, state.tick, colors[p.id] ?? '#ffd400');
     const text = state.players.length >= 2 ? labels?.[p.id] : undefined;
