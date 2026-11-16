@@ -189,7 +189,23 @@ $<HTMLSelectElement>('metric').onchange = refreshResults;
 
 async function postJson(url: string, body: unknown) {
   const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) });
-  if (!res.ok) throw new Error(`POST ${url} failed with status ${res.status}`);
+  if (!res.ok) {
+    let detail = '';
+    try {
+      detail = ((await res.json()) as { error?: string }).error ?? '';
+    } catch {
+      /* the dev server's own error replies have no JSON body */
+    }
+    throw new Error(`HTTP ${res.status}${detail ? ` (${detail})` : ''}`);
+  }
+}
+
+function explainProxyError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (msg.startsWith('HTTP 403')) return `${msg}. The proxy only accepts pages opened at localhost or 127.0.0.1, so open the localhost address.`;
+  if (/^HTTP 5\d\d/.test(msg)) return `${msg}. The proxy is probably not running or not reachable on port 8787. Run npm run server in a second terminal.`;
+  if (msg.startsWith('HTTP')) return `${msg}.`;
+  return `${msg}. The page could not reach its dev server.`;
 }
 
 let running = false;
@@ -209,8 +225,8 @@ $('btnRun').onclick = async () => {
       if (!ok) return;
       try {
         await postJson('/api/budget', { budgetUsd: num('budget'), maxCalls: e.maxCalls });
-      } catch {
-        $('status').textContent = 'Could not set the budget on the proxy server (is npm run server running?). Run cancelled.';
+      } catch (err) {
+        $('status').textContent = `Could not set the budget on the proxy server: ${explainProxyError(err)} Run cancelled.`;
         return;
       }
     }
