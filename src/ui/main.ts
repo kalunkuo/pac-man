@@ -10,6 +10,7 @@ import type { GameSession } from '../runner/session';
 import type { GameResult, Mode, RunPlan } from '../runner/types';
 import { describePlayer, renderHeatmap, type Metric } from './panels';
 import { PLAYER_COLORS, drawBoard } from './render';
+import { restoreRun } from './saved';
 import { validateSettings } from './settings';
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -153,7 +154,7 @@ function showGroup(sessions: GameSession[], agents: Agent[]) {
 // --- run ---
 let controller: AbortController | null = null;
 let results: GameResult[] = [];
-let shownAgents: Agent[] = [];
+let shownAgents: { id: string; label: string }[] = [];
 let shownScenarios = ALL_SCENARIOS.slice(0, 0);
 
 function refreshResults() {
@@ -201,7 +202,7 @@ $('btnRun').onclick = async () => {
     const signal = controller.signal;
     results = [];
     refreshResults();
-    shownAgents = p.plan.agents;
+    shownAgents = p.plan.agents.map((a) => ({ id: a.id, label: a.label }));
     shownScenarios = p.plan.scenarios;
     colors = Object.fromEntries(p.plan.agents.map((a, i) => [a.id, PLAYER_COLORS[i % PLAYER_COLORS.length]]));
     $('status').textContent = 'Running...';
@@ -234,9 +235,17 @@ $('btnRun').onclick = async () => {
     );
     $('status').textContent = signal.aborted ? 'Stopped.' : sawHalt ? 'Stopped: budget cap reached. Partial results kept.' : 'Done.';
     try {
-      await postJson('/api/results', { runId: `run-${Date.now()}`, results: out });
+      const meta = {
+        savedAt: new Date().toISOString(),
+        mode: p.plan.mode,
+        maxTicks: p.plan.maxTicks,
+        tickMs: p.plan.tickMs,
+        agents: shownAgents,
+        scenarios: p.plan.scenarios.map(({ id, name, size, complexity, ghosts }) => ({ id, name, size, complexity, ghosts })),
+      };
+      await postJson('/api/results', { runId: `run-${Date.now()}`, results: { meta, results: out } });
     } catch {
-      /* saving is optional */
+      $('status').textContent += ' (Could not save this run to the proxy.)';
     }
   } catch (err) {
     $('status').textContent = `Run failed: ${err instanceof Error ? err.message : String(err)}`;
@@ -246,6 +255,41 @@ $('btnRun').onclick = async () => {
     running = false;
     $<HTMLButtonElement>('btnRun').disabled = false;
   }
+};
+
+// --- saved runs ---
+let savedRuns: { runId: string; results: unknown }[] = [];
+
+$('btnLoadList').onclick = async () => {
+  try {
+    const res = await fetch('/api/results');
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    savedRuns = (await res.json()) as { runId: string; results: unknown }[];
+    const select = $<HTMLSelectElement>('saved');
+    select.replaceChildren(...savedRuns.map((r) => new Option(r.runId, r.runId)));
+    $('status').textContent = savedRuns.length ? `${savedRuns.length} saved run(s) found.` : 'No saved runs yet.';
+  } catch {
+    $('status').textContent = 'Could not list saved runs (is npm run server running?).';
+  }
+};
+
+// Reloading only reads a file the proxy already stored. It never starts a run or calls a model.
+$('btnLoad').onclick = () => {
+  if (running) {
+    $('status').textContent = 'Wait for the current run to finish or click Stop first.';
+    return;
+  }
+  const run = savedRuns.find((r) => r.runId === $<HTMLSelectElement>('saved').value);
+  const restored = run ? restoreRun(run.results) : null;
+  if (!run || !restored) {
+    $('status').textContent = run ? 'That saved run could not be read.' : 'Click Refresh list and pick a saved run first.';
+    return;
+  }
+  results = restored.results;
+  shownAgents = restored.agents;
+  shownScenarios = restored.scenarios;
+  refreshResults();
+  $('status').textContent = `Showing saved run ${run.runId}.`;
 };
 
 $('btnStop').onclick = () => controller?.abort();

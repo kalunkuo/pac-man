@@ -18,7 +18,11 @@ export async function listResults(dir: string): Promise<{ runId: string; results
   }
   const out: { runId: string; results: unknown }[] = [];
   for (const name of names.filter((n) => n.endsWith('.json')).sort()) {
-    out.push({ runId: name.slice(0, -5), results: JSON.parse(await readFile(join(dir, name), 'utf8')) });
+    try {
+      out.push({ runId: name.slice(0, -5), results: JSON.parse(await readFile(join(dir, name), 'utf8')) });
+    } catch {
+      /* skip unreadable or corrupt files */
+    }
   }
   return out;
 }

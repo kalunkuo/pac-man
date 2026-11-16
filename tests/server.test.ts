@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
@@ -181,6 +181,17 @@ describe('results store', () => {
         { runId: 'run-2', results: [] },
       ]);
       await expect(saveResults(dir, '../evil', [])).rejects.toThrow();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('skips files that are not valid JSON instead of throwing', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'pacman-results-'));
+    try {
+      await saveResults(dir, 'run-1', { ok: true });
+      await writeFile(join(dir, 'run-bad.json'), '{ not json');
+      expect(await listResults(dir)).toEqual([{ runId: 'run-1', results: { ok: true } }]);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
